@@ -1,3 +1,12 @@
+wys (0.1.0) purple; urgency=medium
+
+  * Instantiate/deinstantiate PulseAudio loopback modules
+  * wys-audio: Remove extraneous debugging output
+  * wys-audio: Swap ordering of module instantiation
+  * Release Wys 0.1.0
+
+ -- Bob Ham <bob.ham@puri.sm>  Fri, 20 Sep 2019 13:24:54 +0100
+
 wys (0.0.1) purple; urgency=low
 
   * Initial release.
