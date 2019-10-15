@@ -19,20 +19,30 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 
-wys_deps = [ dependency('gobject-2.0'),
-#             dependency('gio-unix-2.0'),
-             dependency('ModemManager'),
-             dependency('mm-glib'),
-             dependency('libpulse'),
-             dependency('libpulse-mainloop-glib'),
-           ]
+wys_deps = [
+  dependency('gobject-2.0'),
+  dependency('gio-unix-2.0'),
+  dependency('ModemManager'),
+  dependency('mm-glib'),
+  dependency('libpulse'),
+  dependency('libpulse-mainloop-glib'),
+]
 
-executable('wys',
-           ['main.c',
-            'util.h', 'util.c',
-            'wys-modem.h', 'wys-modem.c',
-            'wys-audio.h', 'wys-audio.c',
-           ],
-           dependencies : wys_deps,
-           include_directories : include_directories('..'),
-           install : true)
+config_h = configure_file (
+  output: 'config.h',
+  configuration: config_data
+)
+
+executable (
+  'wys',
+  config_h,
+  [
+    'main.c',
+    'util.h', 'util.c',
+    'wys-modem.h', 'wys-modem.c',
+    'wys-audio.h', 'wys-audio.c',
+  ],
+  dependencies : wys_deps,
+  include_directories : include_directories('..'),
+  install : true
+)

@@ -26,4 +26,33 @@ project('wys', 'c',
   default_options: [ 'warning_level=1', 'buildtype=debugoptimized', 'c_std=gnu11' ],
 )
 
+app_name = meson.project_name()
+
+prefix = get_option('prefix')
+datadir = get_option('datadir')
+sysconfdir = get_option('sysconfdir')
+
+if datadir.startswith('/')
+  full_datadir = datadir
+else
+  full_datadir = join_paths(prefix, datadir)
+endif
+
+if sysconfdir.startswith('/')
+  full_sysconfdir = sysconfdir
+else
+  full_sysconfdir = join_paths(prefix, sysconfdir)
+endif
+
+
+config_data = configuration_data()
+config_data.set_quoted('APP_DATA_NAME', app_name)
+config_data.set_quoted('DATADIR', full_datadir)
+config_data.set_quoted('SYSCONFDIR', full_sysconfdir)
+
 subdir('src')
+
+install_subdir(
+  'machine-conf',
+  install_dir: join_paths(datadir, app_name)
+)

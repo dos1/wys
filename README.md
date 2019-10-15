@@ -42,5 +42,23 @@ the same information.
   $ export WYS_MODEM="SIMCom SIM7100"
   $ wys
 
-The command-line options take precendence over the environment
-variables.
+There is also a database of machine-specific configuration files in
+the machine-conf/ sub-directory.  This database will be installed
+under the installation prefix, in $prefix/share/wys/machine-conf.  The
+machine name is the device tree model field for that machine, given by
+/proc/device-tree/model.
+
+A number of locations will be checked for Wys machine configuration
+entries under a wys/machine-conf/ sub-directory in this order:
+
+  $XDG_CONFIG_HOME         (default: $HOME/.config)
+  $XDG_CONFIG_DIRS         (default: /etc/xdg)
+  sysconfdir meson option  (default: $prefix/etc)
+  datadir meson option     (default: $prefix/share)
+  $XDG_DATA_DIRS           (default: /usr/local/share/:/usr/share/)
+
+The precendence of the different configuration methods is as follows:
+
+  (1) command line options
+  (2) environment variables
+  (3) machine configuration files.

@@ -25,13 +25,20 @@
 #include "wys-modem.h"
 #include "wys-audio.h"
 #include "util.h"
+#include "config.h"
 
 #include <libmm-glib.h>
 #include <glib.h>
 #include <glib/gi18n.h>
+#include <glib/gstdio.h>
+#include <gio/gunixinputstream.h>
 
 #include <stdio.h>
 #include <locale.h>
+#include <fcntl.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <errno.h>
 
 
 #define TTY_CHUNK_SIZE   320
@@ -342,27 +349,201 @@ run (const gchar *codec,
   set_up (&data, codec, modem);
 
   loop = g_main_loop_new (NULL, FALSE);
-  printf (APPLICATION_NAME " started\n");
+  printf (APPLICATION_NAME " started with codec `%s', modem `%s'\n",
+          codec, modem);
   g_main_loop_run (loop);
   g_main_loop_unref (loop);
 
   tear_down (&data);
 }
 
-static void
-ensure_alsa_card (      gchar **name,
-                  const gchar  *var,
-                  const gchar  *what)
-{
-  if (!*name)
-    {
-      *name = getenv (var);
 
-      if (!*name)
+static gchar *get_machine ()
+{
+  static const gchar *MODEL_FILENAME = "/proc/device-tree/model";
+  gchar *machine;
+  GError *error = NULL;
+
+  g_file_get_contents (MODEL_FILENAME,
+                       &machine,
+                       NULL,
+                       &error);
+  if (error)
+    {
+      g_warning ("Error reading `%s': %s",
+                 MODEL_FILENAME, error->message);
+      g_error_free (error);
+    }
+  else
+    {
+      /* Convert any directory separator characters to "_" */
+      g_strdelimit (machine, G_DIR_SEPARATOR_S, '_');
+    }
+
+  return machine;
+}
+
+
+/** This function will close @fd */
+static gchar *
+read_machine_conf_file (const gchar *filename,
+                        int          fd)
+{
+  GInputStream *unix_stream;
+  GDataInputStream *data_stream;
+  gboolean try_again;
+  gchar *line;
+  GError *error = NULL;
+
+  g_debug ("Reading machine configuration file `%s'", filename);
+
+  unix_stream = g_unix_input_stream_new (fd, TRUE);
+  g_assert (unix_stream != NULL);
+
+  data_stream = g_data_input_stream_new (unix_stream);
+  g_assert (data_stream != NULL);
+  g_object_unref (unix_stream);
+
+  do
+    {
+      try_again = FALSE;
+
+      line = g_data_input_stream_read_line_utf8
+        (data_stream, NULL, NULL, &error);
+
+      if (error)
         {
-          wys_error ("No %s specified", what);
+          g_warning ("Error reading from machine"
+                     " configuration file `%s': %s",
+                     filename, error->message);
+          g_error_free (error);
+        }
+      else if (line)
+        {
+          g_strstrip (line);
+
+          // Skip comments and empty lines
+          if (line[0] == '#' || line[0] == '\0')
+            {
+              g_free (line);
+              try_again = TRUE;
+            }
         }
     }
+  while (try_again);
+
+  g_object_unref (data_stream);
+  return line;
+}
+
+
+static gchar *
+dir_machine_conf (const gchar *dir,
+                  const gchar *machine,
+                  const gchar *key)
+{
+  gchar *filename;
+  int fd;
+  gchar *value = NULL;
+
+  filename = g_build_filename (dir, APP_DATA_NAME,
+                               "machine-conf",
+                               machine, key, NULL);
+
+  g_debug ("Trying machine configuration file `%s'",
+           filename);
+
+  fd = g_open (filename, O_RDONLY, 0);
+  if (fd == -1)
+    {
+      if (errno != ENOENT)
+        {
+          // The error isn't that the file doesn't exist
+          g_warning ("Error opening machine"
+                     " configuration file `%s': %s",
+                     filename, g_strerror (errno));
+        }
+    }
+  else
+    {
+      value = read_machine_conf_file (filename, fd);
+    }
+
+  g_free (filename);
+  return value;
+}
+
+
+static gchar *
+machine_conf (const gchar *machine,
+              const gchar *key)
+{
+  gchar *value = NULL;
+  const gchar * const *dirs, * const *dir;
+
+
+#define try_dir(d)                                      \
+  value = dir_machine_conf (d, machine, key);           \
+  if (value)                                            \
+    {                                                   \
+      return value;                                     \
+    }
+
+
+  try_dir (g_get_user_config_dir ());
+
+  dirs = g_get_system_config_dirs ();
+  for (dir = dirs; *dir; ++dir)
+    {
+      try_dir (*dir);
+    }
+
+  try_dir (SYSCONFDIR);
+  try_dir (DATADIR);
+
+  dirs = g_get_system_data_dirs ();
+  for (dir = dirs; *dir; ++dir)
+    {
+      try_dir (*dir);
+    }
+
+#undef try_dir
+
+  return NULL;
+}
+
+
+static void
+ensure_alsa_card (const gchar  *var,
+                  const gchar  *key,
+                        gchar **name,
+                        gchar **machine)
+{
+  if (*name)
+    {
+      return;
+    }
+
+  *name = getenv (var);
+  if (*name)
+    {
+      return;
+    }
+
+  if (!*machine)
+    {
+      *machine = get_machine ();
+    }
+  if (*machine)
+    {
+      *name = machine_conf (*machine, key);
+      if (*name)
+        {
+          return;
+        }
+    }
+
+  wys_error ("No %s specified", key);
 }
 
 
@@ -374,6 +555,7 @@ main (int argc, char **argv)
   gboolean ok;
   gchar *codec = NULL;
   gchar *modem = NULL;
+  gchar *machine = NULL;
 
   setlocale(LC_ALL, "");
 
@@ -392,10 +574,14 @@ main (int argc, char **argv)
       g_print ("Error parsing options: %s\n", error->message);
     }
 
-  ensure_alsa_card (&codec, "WYS_CODEC", "codec");
-  ensure_alsa_card (&modem, "WYS_MODEM", "modem");
+  ensure_alsa_card ("WYS_CODEC", "codec", &codec, &machine);
+  ensure_alsa_card ("WYS_MODEM", "modem", &modem, &machine);
 
   run (codec, modem);
+
+  g_free (modem);
+  g_free (codec);
+  g_free (machine);
 
   return 0;
 }
