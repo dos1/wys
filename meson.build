@@ -19,12 +19,24 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 
-project('wys', 'c',
-          version: '0.1.0',
-          license: 'GPLv3+',
-    meson_version: '>= 0.42.0',
-  default_options: [ 'warning_level=1', 'buildtype=debugoptimized', 'c_std=gnu11' ],
+project (
+  'wys',
+  'c',
+  version : '0.1.0',
+  license : 'GPLv3+',
+  meson_version : '>= 0.42.0',
+  default_options :
+    [
+      'warning_level=1',
+      'buildtype=debugoptimized',
+      'c_std=gnu11'
+    ],
 )
+
+
+libmchk_proj = subproject('libmachine-check')
+libmchk_dep = libmchk_proj.get_variable('libmachine_check_dep')
+
 
 app_name = meson.project_name()
 
@@ -52,7 +64,13 @@ config_data.set_quoted('SYSCONFDIR', full_sysconfdir)
 
 subdir('src')
 
-install_subdir(
+install_subdir (
   'machine-conf',
-  install_dir: join_paths(datadir, app_name)
+  install_dir : join_paths(datadir, app_name)
+)
+
+install_subdir (
+  'machine-check',
+  install_dir : join_paths(datadir, 'machine-check', app_name),
+  strip_directory : true
 )

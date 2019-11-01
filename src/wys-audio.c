@@ -82,9 +82,10 @@ context_notify_cb (pa_context *audio, gboolean *ready)
       *ready = FALSE;
       break;
     case PA_CONTEXT_FAILED:
-    case PA_CONTEXT_TERMINATED:
       wys_error ("Error in PulseAudio context: %s",
                   pa_strerror (pa_context_errno (audio)));
+      break;
+    case PA_CONTEXT_TERMINATED:
     case PA_CONTEXT_READY:
       *ready = TRUE;
       break;
@@ -133,6 +134,8 @@ set_up_audio_context (WysAudio *self)
     {
       g_main_context_iteration (NULL, TRUE);
     }
+
+  pa_context_set_state_callback (self->ctx, NULL, NULL);
 }
 
 

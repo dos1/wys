@@ -20,6 +20,7 @@
 #
 
 wys_deps = [
+  libmchk_dep,
   dependency('gobject-2.0'),
   dependency('gio-unix-2.0'),
   dependency('ModemManager'),

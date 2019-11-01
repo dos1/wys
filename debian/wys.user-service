@@ -7,9 +7,6 @@ StartLimitIntervalSec=0
 # We need PulseAudio
 Requires=pulseaudio.service
 
-# Don't run Haegtesse and Wys at the same time
-Conflicts=haegtesse.service
-
 [Service]
 
 # Execution will fail unless (1) the --codec and --modem command-line
@@ -27,8 +24,8 @@ Conflicts=haegtesse.service
 #
 ExecStart=/usr/bin/wys
 
-Restart=always
+Restart=on-failure
 RestartSec=500ms
 
 [Install]
-RequiredBy=phone-voice-call-audio.target
+RequiredBy=default.target

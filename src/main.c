@@ -26,6 +26,7 @@
 #include "wys-audio.h"
 #include "util.h"
 #include "config.h"
+#include "mchk-machine-check.h"
 
 #include <libmm-glib.h>
 #include <glib.h>
@@ -39,11 +40,13 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <errno.h>
+#include <signal.h>
 
 
 #define TTY_CHUNK_SIZE   320
 #define SAMPLE_LEN       2
 
+static GMainLoop *main_loop = NULL;
 
 struct wys_data
 {
@@ -343,44 +346,81 @@ run (const gchar *codec,
      const gchar *modem)
 {
   struct wys_data data;
-  GMainLoop * loop;
 
   memset (&data, 0, sizeof (struct wys_data));
   set_up (&data, codec, modem);
 
-  loop = g_main_loop_new (NULL, FALSE);
+  main_loop = g_main_loop_new (NULL, FALSE);
+
   printf (APPLICATION_NAME " started with codec `%s', modem `%s'\n",
           codec, modem);
-  g_main_loop_run (loop);
-  g_main_loop_unref (loop);
+  g_main_loop_run (main_loop);
+
+  g_main_loop_unref (main_loop);
+  main_loop = NULL;
 
   tear_down (&data);
 }
 
 
-static gchar *get_machine ()
+static void
+check_machine (const gchar *machine)
 {
-  static const gchar *MODEL_FILENAME = "/proc/device-tree/model";
-  gchar *machine;
+  gboolean ok, passed;
   GError *error = NULL;
 
-  g_file_get_contents (MODEL_FILENAME,
-                       &machine,
-                       NULL,
-                       &error);
-  if (error)
+  ok = mchk_check_machine (APP_DATA_NAME,
+                           machine,
+                           &passed,
+                           &error);
+  if (!ok)
     {
-      g_warning ("Error reading `%s': %s",
-                 MODEL_FILENAME, error->message);
+      g_warning ("Error checking machine name against"
+                 " whitelist/blacklist, continuing anyway");
       g_error_free (error);
     }
-  else
+  else if (!passed)
     {
-      /* Convert any directory separator characters to "_" */
-      g_strdelimit (machine, G_DIR_SEPARATOR_S, '_');
+      g_message ("Machine name `%s' did not pass"
+                 " whitelist/blacklist check, exiting",
+                 machine);
+      exit (EXIT_SUCCESS);
+    }
+}
+
+
+static void
+terminate (int signal)
+{
+  if (main_loop)
+    {
+      g_main_loop_quit (main_loop);
+    }
+}
+
+
+/** Ignore signals which make systemd refrain from restarting us due
+ * to "Restart=on-failure": SIGHUP, SIGINT, and SIGPIPE.
+ */
+static void
+setup_signals ()
+{
+  void (*ret)(int);
+
+#define try_setup(NUM,handler)                          \
+  ret = signal (SIG##NUM, handler);                     \
+  if (ret == SIG_ERR)                                   \
+    {                                                   \
+      g_error ("Error setting signal handler: %s",      \
+               g_strerror (errno));                     \
     }
 
-  return machine;
+  try_setup (HUP,  SIG_IGN);
+  try_setup (INT,  SIG_IGN);
+  try_setup (PIPE, SIG_IGN);
+  try_setup (TERM, terminate);
+
+#undef try_setup
 }
 
 
@@ -514,29 +554,28 @@ machine_conf (const gchar *machine,
 
 
 static void
-ensure_alsa_card (const gchar  *var,
+ensure_alsa_card (const gchar  *machine,
+                  const gchar  *var,
                   const gchar  *key,
-                        gchar **name,
-                        gchar **machine)
+                        gchar **name)
 {
+  const gchar *env;
+
   if (*name)
     {
       return;
     }
 
-  *name = getenv (var);
-  if (*name)
+  env = g_getenv (var);
+  if (env)
     {
+      *name = g_strdup (env);
       return;
     }
 
-  if (!*machine)
+  if (machine)
     {
-      *machine = get_machine ();
-    }
-  if (*machine)
-    {
-      *name = machine_conf (*machine, key);
+      *name = machine_conf (machine, key);
       if (*name)
         {
           return;
@@ -553,11 +592,9 @@ main (int argc, char **argv)
   GError *error = NULL;
   GOptionContext *context;
   gboolean ok;
-  gchar *codec = NULL;
-  gchar *modem = NULL;
-  gchar *machine = NULL;
-
-  setlocale(LC_ALL, "");
+  g_autofree gchar *codec = NULL;
+  g_autofree gchar *modem = NULL;
+  g_autofree gchar *machine = NULL;
 
   GOptionEntry options[] =
     {
@@ -565,6 +602,19 @@ main (int argc, char **argv)
       { "modem", 'm', 0, G_OPTION_ARG_STRING, &modem, "Name of the modem's ALSA card", "NAME" },
       { NULL }
     };
+
+  setlocale(LC_ALL, "");
+
+  machine = mchk_read_machine (NULL);
+  if (machine)
+    {
+      check_machine (machine);
+    }
+  else
+    {
+      g_warning ("Could not read machine name, continuing without machine check");
+    }
+
 
   context = g_option_context_new ("- set up PulseAudio loopback for phone call audio");
   g_option_context_add_main_entries (context, options, NULL);
@@ -574,14 +624,19 @@ main (int argc, char **argv)
       g_print ("Error parsing options: %s\n", error->message);
     }
 
-  ensure_alsa_card ("WYS_CODEC", "codec", &codec, &machine);
-  ensure_alsa_card ("WYS_MODEM", "modem", &modem, &machine);
+
+  if (machine)
+    {
+      /* Convert any directory separator characters to "_" */
+      g_strdelimit (machine, G_DIR_SEPARATOR_S, '_');
+    }
+
+  ensure_alsa_card (machine, "WYS_CODEC", "codec", &codec);
+  ensure_alsa_card (machine, "WYS_MODEM", "modem", &modem);
+
+  setup_signals ();
 
   run (codec, modem);
-
-  g_free (modem);
-  g_free (codec);
-  g_free (machine);
 
   return 0;
 }
