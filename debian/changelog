@@ -1,3 +1,11 @@
+wys (0.1.1) amber-phone; urgency=medium
+
+  * Read machine-specific configuration files
+  * Add libmachine-check subproject
+  * Check the machine name against a whitelist/blacklist
+
+ -- Bob Ham <rah@settrans.net>  Wed, 06 Nov 2019 09:41:16 +0000
+
 wys (0.1.0) purple; urgency=medium
 
   * Instantiate/deinstantiate PulseAudio loopback modules
