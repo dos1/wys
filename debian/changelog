@@ -1,3 +1,9 @@
+wys (0.1.2) amber-phone; urgency=medium
+
+  * machine-check: Add blacklist with only devkit
+
+ -- Bob Ham <bob.ham@puri.sm>  Thu, 21 Nov 2019 14:38:43 +0000
+
 wys (0.1.1) amber-phone; urgency=medium
 
   * Read machine-specific configuration files
