@@ -1,3 +1,13 @@
+wys (0.1.3) amber-phone; urgency=medium
+
+  [ Angus Ainslie ]
+  * machine-conf/Purism Librem 5: add config files for the librem5 phone
+
+  [ Bob Ham ]
+  * debian: Make systemd unit WantedBy default.target instead of RequiredBy
+
+ -- Bob Ham <bob.ham@puri.sm>  Tue, 26 Nov 2019 08:45:28 +0000
+
 wys (0.1.2) amber-phone; urgency=medium
 
   * machine-check: Add blacklist with only devkit
