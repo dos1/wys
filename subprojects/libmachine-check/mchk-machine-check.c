@@ -190,9 +190,6 @@ check_dir_machine (const gchar  *dir,
   check_dirname = g_build_filename (dir, "machine-check",
                                     param, NULL);
 
-  g_debug ("Trying machine-check directory `%s'",
-           check_dirname);
-
   // Check the blacklist
   ok = check_list (check_dirname,
                    "blacklist",
@@ -207,6 +204,8 @@ check_dir_machine (const gchar  *dir,
 
   if (present)
     {
+      g_debug ("Machine present in blacklist under `%s'",
+               check_dirname);
       if (passed)
         {
           *passed = FALSE;
@@ -229,6 +228,10 @@ check_dir_machine (const gchar  *dir,
 
   if (list_exists)
     {
+      g_debug ("Machine whitelist exists under `%s'"
+               ", machine %spresent",
+               check_dirname,
+               present ? "" : "not ");
       *done = TRUE;
       if (passed)
         {
@@ -236,6 +239,8 @@ check_dir_machine (const gchar  *dir,
         }
     }
 
+  g_debug ("No machine whitelist or blacklist under `%s'",
+           check_dirname);
   return TRUE;
 }
 
@@ -314,7 +319,8 @@ mchk_check_machine (const gchar  *param,
 #undef try_dir
 
 
-  if (*passed)
+  g_debug ("Defaulting to pass");
+  if (passed)
     {
       *passed = TRUE;
     }
