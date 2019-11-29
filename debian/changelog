@@ -1,3 +1,10 @@
+wys (0.1.4) amber-phone; urgency=medium
+
+  * libmachine-check: Add useful debugging output
+  * libmachine-check: Fix setting of default pass value
+
+ -- Bob Ham <bob.ham@puri.sm>  Fri, 29 Nov 2019 15:05:12 +0000
+
 wys (0.1.3) amber-phone; urgency=medium
 
   [ Angus Ainslie ]
