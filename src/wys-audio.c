@@ -1022,6 +1022,8 @@ instantiate_loopback_sink_cb (const gchar *alsa_card_name,
                          " sink=%s"
                          " source_dont_move=true"
                          " sink_dont_move=true"
+                         " fast_adjust_threshold_msec=100"
+                         " max_latency_msec=25"
                          " sink_input_properties='%s'"
                          " source_output_properties='%s'",
                          data->source,
