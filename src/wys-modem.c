@@ -24,11 +24,17 @@
 
 
 #include "wys-modem.h"
+#include "wys-direction.h"
 #include "util.h"
+#include "enum-types.h"
 
 #include <glib/gi18n.h>
 
-#define WYS_MODEM_HAS_AUDIO  "wys-has-audio"
+static const gchar * const WYS_MODEM_HAS_AUDIO[] =
+  {
+   [WYS_DIRECTION_FROM_NETWORK] = "wys-has-audio-from-network",
+   [WYS_DIRECTION_TO_NETWORK]   = "wys-has-audio-to-network"
+  };
 
 struct _WysModem
 {
@@ -37,8 +43,8 @@ struct _WysModem
   MMModemVoice *voice;
   /** Map of D-Bus object paths to MMCall objects */
   GHashTable *calls;
-  /** How many calls have audio */
-  guint audio_count;
+  /** How many calls have audio, in each direction */
+  guint audio_count[2];
 };
 
 G_DEFINE_TYPE(WysModem, wys_modem, G_TYPE_OBJECT)
@@ -59,11 +65,15 @@ static guint signals [SIGNAL_LAST_SIGNAL];
 
 
 static gboolean
-call_state_has_audio (MMCallState state)
+call_state_has_audio (WysDirection direction,
+                      MMCallState  state)
 {
   switch (state)
     {
     case MM_CALL_STATE_RINGING_OUT:
+      return
+        (direction == WYS_DIRECTION_FROM_NETWORK)
+        ? TRUE : FALSE;
     case MM_CALL_STATE_ACTIVE:
       return TRUE;
     default:
@@ -73,42 +83,84 @@ call_state_has_audio (MMCallState state)
 
 
 static void
-update_audio_count (WysModem *self,
-                    gint      delta)
+update_audio_count (WysModem     *self,
+                    WysDirection  direction,
+                    gint          delta)
 {
-  const guint old_count = self->audio_count;
+  const guint old_count = self->audio_count[direction];
 
-  g_assert (delta >= 0 || self->audio_count > 0);
+  g_assert (delta >= 0 || self->audio_count[direction] > 0);
 
-  self->audio_count += delta;
+  self->audio_count[direction] += delta;
 
-  if (self->audio_count > 0 && old_count == 0)
+  if (self->audio_count[direction] > 0 && old_count == 0)
     {
-      g_debug ("Modem `%s' audio now present",
-               mm_modem_voice_get_path (self->voice));
-      g_signal_emit_by_name (self, "audio-present");
+      g_debug ("Modem `%s' audio %s now present",
+               mm_modem_voice_get_path (self->voice),
+               wys_direction_get_description (direction));
+      g_signal_emit_by_name (self, "audio-present", direction);
     }
-  else if (self->audio_count == 0 && old_count > 0)
+  else if (self->audio_count[direction] == 0 && old_count > 0)
     {
       g_debug ("Modem `%s' audio now absent",
                mm_modem_voice_get_path (self->voice));
-      g_signal_emit_by_name (self, "audio-absent");
+      g_signal_emit_by_name (self, "audio-absent", direction);
     }
 }
 
 
-static void
-set_call_has_audio (WysModem   *self,
-                    const char *path,
-                    gboolean    have_audio)
+static gboolean
+get_call_has_audio (MMCall       *mm_call,
+                    WysDirection  direction)
 {
-  MMCall *mm_call;
+  gpointer data;
 
-  mm_call = g_hash_table_lookup (self->calls, path);
-  g_assert (mm_call != NULL);
+  data = g_object_get_data (G_OBJECT (mm_call),
+                            WYS_MODEM_HAS_AUDIO[direction]);
 
-  g_object_set_data (G_OBJECT (mm_call), WYS_MODEM_HAS_AUDIO,
-                     GUINT_TO_POINTER ((guint)have_audio));
+  return (gboolean)(GPOINTER_TO_UINT (data));
+}
+
+
+static void
+set_call_has_audio (MMCall       *mm_call,
+                    WysDirection  direction,
+                    gboolean      has_audio)
+{
+  g_object_set_data (G_OBJECT (mm_call),
+                     WYS_MODEM_HAS_AUDIO[direction],
+                     GUINT_TO_POINTER ((guint)has_audio));
+}
+
+
+static void
+update_direction_state (WysModem     *self,
+                        MMCall       *mm_call,
+                        const gchar  *path,
+                        WysDirection  direction,
+                        MMCallState   old_state,
+                        MMCallState   new_state)
+{
+  gboolean had_audio  = call_state_has_audio (direction, old_state);
+  gboolean have_audio = call_state_has_audio (direction, new_state);
+
+  if (!had_audio && have_audio)
+    {
+      g_debug ("Call `%s' gained audio %s", path,
+               wys_direction_get_description (direction));
+      update_audio_count (self, direction, +1);
+    }
+  else if (had_audio && !have_audio)
+    {
+      g_debug ("Call `%s' lost audio %s", path,
+               wys_direction_get_description (direction));
+      update_audio_count (self, direction, -1);
+    }
+
+  if (had_audio != have_audio)
+    {
+      set_call_has_audio (mm_call, direction, have_audio);
+    }
 }
 
 
@@ -119,34 +171,37 @@ call_state_changed_cb (MmGdbusCall       *mm_gdbus_call,
                        MMCallStateReason  reason,
                        WysModem          *self)
 {
-  gboolean had_audio  = call_state_has_audio (old_state);
-  gboolean have_audio = call_state_has_audio (new_state);
+  MMCall *mm_call = MM_CALL (mm_gdbus_call);
+  const gchar * path = mm_call_get_path (mm_call);
 
   g_debug ("Call `%s' state changed, new: %i, old: %i",
-           mm_call_get_path (MM_CALL (mm_gdbus_call)),
-           (int)new_state, (int)old_state);
+           path, (int)new_state, (int)old_state);
 
   // FIXME: deal with calls being put on hold (one call goes
   // non-audio, another call goes audio after)
 
-  if (!had_audio && have_audio)
-    {
-      g_debug ("Call `%s' gained audio",
-               mm_call_get_path (MM_CALL (mm_gdbus_call)));
-      update_audio_count (self, +1);
-    }
-  else if (had_audio && !have_audio)
-    {
-      g_debug ("Call `%s' lost audio",
-               mm_call_get_path (MM_CALL (mm_gdbus_call)));
-      update_audio_count (self, -1);
-    }
+  update_direction_state (self, mm_call, path,
+                          WYS_DIRECTION_FROM_NETWORK,
+                          old_state, new_state);
+  update_direction_state (self, mm_call, path,
+                          WYS_DIRECTION_TO_NETWORK,
+                          old_state, new_state);
+}
 
-  if (had_audio != have_audio)
+
+static void
+init_call_direction (WysModem     *self,
+                     MMCall       *mm_call,
+                     MMCallState   state,
+                     WysDirection  direction)
+{
+  gboolean has_audio = call_state_has_audio (direction, state);
+
+  set_call_has_audio (mm_call, direction, has_audio);
+
+  if (has_audio)
     {
-      set_call_has_audio (self,
-                          mm_call_get_path (MM_CALL (mm_gdbus_call)),
-                          have_audio);
+      update_audio_count (self, direction, +1);
     }
 }
 
@@ -155,19 +210,11 @@ static void
 add_call (WysModem *self,
           MMCall   *mm_call)
 {
-  GObject *gobj = G_OBJECT (mm_call);
   MmGdbusCall *mm_gdbus_call = MM_GDBUS_CALL (mm_call);
-  MMCallState state;
-  gboolean has_audio;
   gchar *path;
+  MMCallState state;
 
-  state = mm_gdbus_call_get_state (mm_gdbus_call);
-  has_audio = call_state_has_audio (state);
-
-  g_object_ref (gobj);
-  g_object_set_data (gobj, WYS_MODEM_HAS_AUDIO,
-                     GUINT_TO_POINTER ((guint)has_audio));
-
+  g_object_ref (mm_call);
   path = mm_call_dup_path (mm_call);
   g_hash_table_insert (self->calls, path, mm_call);
 
@@ -175,10 +222,11 @@ add_call (WysModem *self,
                     G_CALLBACK (call_state_changed_cb),
                     self);
 
-  if (has_audio)
-    {
-      update_audio_count (self, +1);
-    }
+  state = mm_call_get_state (mm_call);
+  init_call_direction (self, mm_call, state,
+                       WYS_DIRECTION_FROM_NETWORK);
+  init_call_direction (self, mm_call, state,
+                       WYS_DIRECTION_TO_NETWORK);
 
   g_debug ("Call `%s' added, state: %i", path, (int)state);
 }
@@ -250,7 +298,7 @@ call_added_list_calls_cb (MMModemVoice                 *voice,
 static void
 call_added_cb (MMModemVoice  *voice,
                gchar         *path,
-               WysModem *self)
+               WysModem      *self)
 {
   struct WysModemCallAddedData *data;
 
@@ -274,12 +322,26 @@ call_added_cb (MMModemVoice  *voice,
 
 
 static void
+clear_call_direction (WysModem     *self,
+                      MMCall       *mm_call,
+                      WysDirection  direction)
+{
+  gboolean has_audio =
+    get_call_has_audio (mm_call, direction);
+
+  if (has_audio)
+    {
+      update_audio_count (self, direction, -1);
+    }
+}
+
+
+static void
 call_deleted_cb (MMModemVoice *voice,
                  const gchar  *path,
                  WysModem     *self)
 {
   MMCall *mm_call;
-  gboolean has_audio;
 
   g_debug ("Removing call `%s'", path);
 
@@ -290,13 +352,10 @@ call_deleted_cb (MMModemVoice *voice,
       return;
     }
 
-  has_audio = (gboolean)
-    (GPOINTER_TO_UINT (g_object_get_data (G_OBJECT (mm_call),
-                                          WYS_MODEM_HAS_AUDIO)));
-  if (has_audio)
-    {
-      update_audio_count (self, -1);
-    }
+  clear_call_direction (self, mm_call,
+                        WYS_DIRECTION_FROM_NETWORK);
+  clear_call_direction (self, mm_call,
+                        WYS_DIRECTION_TO_NETWORK);
 
   g_hash_table_remove (self->calls, path);
 
@@ -385,9 +444,11 @@ dispose (GObject *object)
   if (g_hash_table_size (self->calls) > 0)
     {
       g_hash_table_remove_all (self->calls);
-      if (self->audio_count > 0)
+      if (self->audio_count[WYS_DIRECTION_FROM_NETWORK] > 0 ||
+          self->audio_count[WYS_DIRECTION_TO_NETWORK] > 0)
         {
-          self->audio_count = 0;
+          self->audio_count[WYS_DIRECTION_FROM_NETWORK] =
+            self->audio_count[WYS_DIRECTION_TO_NETWORK] = 0;
           g_signal_emit_by_name (self, "audio-absent");
         }
     }
@@ -434,15 +495,17 @@ wys_modem_class_init (WysModemClass *klass)
    * @self: The #WysModem instance.
    *
    * This signal is emitted when a modem's call enters a state where
-   * it has audio.
+   * it has audio in a particular direction with respect to the phone
+   * network.
    */
   signals[SIGNAL_AUDIO_PRESENT] =
-    g_signal_newv ("audio-present",
-		   G_TYPE_FROM_CLASS (klass),
-		   G_SIGNAL_RUN_LAST,
-		   NULL, NULL, NULL, NULL,
-		   G_TYPE_NONE,
-		   0, NULL);
+    g_signal_new ("audio-present",
+                  G_TYPE_FROM_CLASS (klass),
+                  G_SIGNAL_RUN_LAST,
+                  0, NULL, NULL, NULL,
+                  G_TYPE_NONE,
+                  1,
+                  WYS_TYPE_DIRECTION);
 
   /**
    * WysModem::audio-absent:
@@ -452,12 +515,13 @@ wys_modem_class_init (WysModemClass *klass)
    * state where they have audio.
    */
   signals[SIGNAL_AUDIO_ABSENT] =
-    g_signal_newv ("audio-absent",
-		   G_TYPE_FROM_CLASS (klass),
-		   G_SIGNAL_RUN_LAST,
-		   NULL, NULL, NULL, NULL,
-		   G_TYPE_NONE,
-		   0, NULL);
+    g_signal_new ("audio-absent",
+                  G_TYPE_FROM_CLASS (klass),
+                  G_SIGNAL_RUN_LAST,
+                  0, NULL, NULL, NULL,
+                  G_TYPE_NONE,
+                  1,
+                  WYS_TYPE_DIRECTION);
 }
 
 

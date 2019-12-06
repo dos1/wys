@@ -19,6 +19,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 
+gnome = import('gnome')
+
 wys_deps = [
   libmchk_dep,
   dependency('gobject-2.0'),
@@ -34,12 +36,18 @@ config_h = configure_file (
   configuration: config_data
 )
 
+wys_enum_headers = files(['wys-direction.h'])
+wys_enum_sources = gnome.mkenums_simple('enum-types',
+                                        sources : wys_enum_headers)
+
 executable (
   'wys',
   config_h,
+  wys_enum_sources,
   [
     'main.c',
     'util.h', 'util.c',
+    'wys-direction.h', 'wys-direction.c',
     'wys-modem.h', 'wys-modem.c',
     'wys-audio.h', 'wys-audio.c',
   ],

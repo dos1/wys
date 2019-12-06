@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018, 2019 Purism SPC
+ * Copyright (C) 2019 Purism SPC
  *
  * This file is part of Wys.
  *
@@ -22,26 +22,19 @@
  *
  */
 
-#ifndef WYS_AUDIO_H__
-#define WYS_AUDIO_H__
 
 #include "wys-direction.h"
 
-#include <glib-object.h>
-
-G_BEGIN_DECLS
-
-#define WYS_TYPE_AUDIO (wys_audio_get_type ())
-
-G_DECLARE_FINAL_TYPE (WysAudio, wys_audio, WYS, AUDIO, GObject);
-
-WysAudio *wys_audio_new                (const gchar  *codec,
-                                        const gchar  *modem);
-void      wys_audio_ensure_loopback    (WysAudio     *self,
-                                        WysDirection  direction);
-void      wys_audio_ensure_no_loopback (WysAudio     *self,
-                                        WysDirection  direction);
-
-G_END_DECLS
-
-#endif /* WYS_AUDIO_H__ */
+const gchar *
+wys_direction_get_description (WysDirection direction)
+{
+  switch (direction)
+    {
+    case WYS_DIRECTION_FROM_NETWORK:
+      return "from network";
+    case WYS_DIRECTION_TO_NETWORK:
+      return "to network";
+    default:
+      return NULL;
+    }
+}

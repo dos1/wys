@@ -58,46 +58,52 @@ struct wys_data
   MMManager *mm;
   /** Map of D-Bus object paths to WysModems */
   GHashTable *modems;
-  /** How many modems have audio calls */
-  guint audio_count;
+  /** How many modems have audio, in each direction */
+  guint audio_count[2];
 };
 
 
 static void
 update_audio_count (struct wys_data *data,
+                    WysDirection     direction,
                     gint             delta)
 {
-  const guint old_count = data->audio_count;
+  const guint old_count = data->audio_count[direction];
 
-  g_assert (delta >= 0 || data->audio_count > 0);
+  g_assert (delta >= 0 || data->audio_count[direction] > 0);
 
-  data->audio_count += delta;
+  data->audio_count[direction] += delta;
 
-  if (data->audio_count > 0 && old_count == 0)
+  if (data->audio_count[direction] > 0 && old_count == 0)
     {
-      g_debug ("Audio now present");
-      wys_audio_ensure_loopback (data->audio);
+      g_debug ("Audio %s now present",
+               wys_direction_get_description (direction));
+      wys_audio_ensure_loopback (data->audio, direction);
     }
-  else if (data->audio_count == 0 && old_count > 0)
+  else if (data->audio_count[direction] == 0 && old_count > 0)
     {
-      g_debug ("Audio now absent");
-      wys_audio_ensure_no_loopback (data->audio);
+      g_debug ("Audio %s now absent",
+               wys_direction_get_description (direction));
+      wys_audio_ensure_no_loopback (data->audio, direction);
     }
 }
 
+
 static void
 audio_present_cb (struct wys_data *data,
+                  WysDirection     direction,
                   WysModem        *modem)
 {
-  update_audio_count (data, +1);
+  update_audio_count (data, direction, +1);
 }
 
 
 static void
 audio_absent_cb (struct wys_data *data,
+                 WysDirection     direction,
                  WysModem        *modem)
 {
-  update_audio_count (data, -1);
+  update_audio_count (data, direction, -1);
 }
 
 

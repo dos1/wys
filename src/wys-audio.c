@@ -1143,12 +1143,22 @@ ensure_loopback (pa_context *ctx,
 
 
 void
-wys_audio_ensure_loopback (WysAudio *self)
+wys_audio_ensure_loopback (WysAudio     *self,
+                           WysDirection  direction)
 {
-  ensure_loopback (self->ctx, self->modem, self->codec,
-                   "Voice call audio (to speaker)");
-  ensure_loopback (self->ctx, self->codec, self->modem,
-                   "Voice call audio (from mic)");
+  switch (direction)
+    {
+    case WYS_DIRECTION_FROM_NETWORK:
+      ensure_loopback (self->ctx, self->modem, self->codec,
+                       "Voice call audio (to speaker)");
+      break;
+    case WYS_DIRECTION_TO_NETWORK:
+      ensure_loopback (self->ctx, self->codec, self->modem,
+                       "Voice call audio (from mic)");
+      break;
+    default:
+      break;
+    }
 }
 
 
@@ -1230,8 +1240,18 @@ ensure_no_loopback (pa_context *ctx,
 
 
 void
-wys_audio_ensure_no_loopback (WysAudio *self)
+wys_audio_ensure_no_loopback (WysAudio     *self,
+                              WysDirection  direction)
 {
-  ensure_no_loopback (self->ctx, self->codec, self->modem);
-  ensure_no_loopback (self->ctx, self->modem, self->codec);
+  switch (direction)
+    {
+    case WYS_DIRECTION_FROM_NETWORK:
+      ensure_no_loopback (self->ctx, self->modem, self->codec);
+      break;
+    case WYS_DIRECTION_TO_NETWORK:
+      ensure_no_loopback (self->ctx, self->codec, self->modem);
+      break;
+    default:
+      break;
+    }
 }
