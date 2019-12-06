@@ -1,3 +1,13 @@
+wys (0.1.5) amber-phone; urgency=medium
+
+  [ Bob Ham ]
+  * Instantiate mic loopback module only when call is active
+
+  [ Angus Ainslie ]
+  * src/wys-audio.c: set the max latency at 100 milli seconds
+
+ -- Bob Ham <bob.ham@puri.sm>  Fri, 06 Dec 2019 15:00:35 +0000
+
 wys (0.1.4) amber-phone; urgency=medium
 
   * libmachine-check: Add useful debugging output
