@@ -1,3 +1,9 @@
+wys (0.1.6) amber-phone; urgency=medium
+
+  * d/control: Add versioned dependecy on pulseaudio
+
+ -- Bob Ham <bob.ham@puri.sm>  Sun, 08 Dec 2019 12:17:58 +0000
+
 wys (0.1.5) amber-phone; urgency=medium
 
   [ Bob Ham ]

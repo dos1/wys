@@ -17,6 +17,7 @@ Architecture: any
 Depends:
  ${misc:Depends},
  ${shlibs:Depends},
+ pulseaudio (>= 12.2-4+deb10u1pureos+librem5.1),
 Recommends:
  modemmanager
 Description: A daemon to start/stop PulseAudio loopbacks for phone call audio
