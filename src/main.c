@@ -187,7 +187,7 @@ interface_removed_cb (struct wys_data *data,
   g_debug ("ModemManager interface `%s' removed on object `%s'",
            info->name, path);
 
-  if (g_strcmp0 (info->name, MM_DBUS_INTERFACE_MODEM_VOICE) != 0)
+  if (g_strcmp0 (info->name, MM_DBUS_INTERFACE_MODEM_VOICE) == 0)
     {
       remove_modem_object (data, path, object);
     }
