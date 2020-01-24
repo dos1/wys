@@ -1,3 +1,10 @@
+wys (0.1.7) amber-phone; urgency=medium
+
+  * main: Fix interface name comparison check during interface removal
+  * main: Stop running (via systemd restart) when not configured
+
+ -- Bob Ham <bob.ham@puri.sm>  Fri, 24 Jan 2020 13:33:11 +0000
+
 wys (0.1.6) amber-phone; urgency=medium
 
   * d/control: Add versioned dependecy on pulseaudio
