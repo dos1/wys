@@ -588,7 +588,8 @@ ensure_alsa_card (const gchar  *machine,
         }
     }
 
-  wys_error ("No %s specified", key);
+  g_warning ("No %s specified, refusing to run", key);
+  exit (EXIT_SUCCESS);
 }
 
 
