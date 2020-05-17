@@ -1,0 +1,31 @@
+[Unit]
+Description=Wys, a daemon for voice call audio
+
+# Don't stop restarting the program
+StartLimitIntervalSec=0
+
+# We need PulseAudio
+Requires=pulseaudio.service
+
+[Service]
+
+# Execution will fail unless (1) the --codec and --modem command-line
+# options are given with appropriate ALSA card names, (2) the
+# WYS_CODEC and WYS_MODEM environment variables are set, or (3) the
+# current machine is present in a machine-conf database under
+# /usr/share/wys, /etc/wys, $HOME/.config/wys, etc.
+#
+# Environment variables can be set elsewhere, for example adding a
+# wys.service.d/my-hardware.conf containing the following:
+#
+#   [Service]
+#   Environment=WYS_CODEC=sgtl5000
+#   Environment=WYS_MODEM="SIMCom SIM7100"
+#
+ExecStart=/usr/bin/wys
+
+Restart=on-failure
+RestartSec=500ms
+
+[Install]
+WantedBy=default.target

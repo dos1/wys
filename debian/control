@@ -1,0 +1,29 @@
+Source: wys
+Section: comm
+Priority: optional
+Maintainer: Bob Ham <rah@settrans.net>
+Build-Depends:
+ debhelper (>= 9),
+ dh-exec,
+ libglib2.0-dev,
+ libmm-glib-dev,
+ libpulse-dev,
+ meson,
+Standards-Version: 4.1.3
+Homepage: https://source.puri.sm/Librem5/wys
+
+Package: wys
+Architecture: any
+Depends:
+ ${misc:Depends},
+ ${shlibs:Depends},
+ pulseaudio (>= 12.2-4+deb10u1pureos+librem5.1),
+Recommends:
+ modemmanager
+Description: A daemon to start/stop PulseAudio loopbacks for phone call audio
+  During a phone call, audio must be streamed from one ALSA device to
+  another ALSA device.  This should only happen during the call, when
+  the modem's audio interfaces will actually be active. To facilitate
+  this, Wys will wait for ModemManager calls in the ringing or active
+  state and enable appropriate PulseAudio loopback modules only during
+  those states.

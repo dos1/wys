@@ -1,0 +1,24 @@
+variables:
+  DEPS: build-essential
+
+before_script:
+  - export DEBIAN_FRONTEND=noninteractive
+  - apt-get -y update
+  - apt-get -y update
+  - apt-get -y build-dep .
+  - apt-get -y install $DEPS
+
+.tags: &tags
+  tags:
+    - librem5
+
+build:native:
+  <<: *tags
+  stage: build
+  artifacts:
+    paths:
+      - _build
+  script:
+    - meson --werror . _build
+    - ninja -C _build
+
