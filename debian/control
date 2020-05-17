@@ -1,7 +1,8 @@
 Source: wys
 Section: comm
 Priority: optional
-Maintainer: Henry-Nicolas Tourneur <debian@nilux.be>
+Maintainer: DebianOnMobile Maintainers <debian-on-mobile-maintainers@alioth-lists.debian.net>
+Uploaders: Henry-Nicolas Tourneur <debian@nilux.be>
 Build-Depends: debhelper-compat (= 13),
                libglib2.0-dev,
                libmm-glib-dev,
@@ -10,8 +11,8 @@ Build-Depends: debhelper-compat (= 13),
 Standards-Version: 4.5.0
 Rules-Requires-Root: no
 Homepage: https://source.puri.sm/Librem5/wys
-Vcs-Git: https://salsa.debian.org/hntourne/wys.git
-Vcs-Browser: https://salsa.debian.org/hntourne/wys
+Vcs-Git: https://salsa.debian.org/DebianOnMobile-team/wys.git
+Vcs-Browser: https://salsa.debian.org/DebianOnMobile-team/wys
 
 Package: wys
 Architecture: any
