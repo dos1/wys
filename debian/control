@@ -18,10 +18,10 @@ Vcs-Browser: https://salsa.debian.org/DebianOnMobile-team/wys
 
 Package: wys
 Architecture: any
-Depends: pulseaudio (>= 12.2-4+deb10u1),
+Depends: modemmanager,
+         pulseaudio (>= 12.2-4+deb10u1),
          ${misc:Depends},
          ${shlibs:Depends}
-Recommends: modemmanager
 Description: daemon to start/stop PulseAudio loopbacks for phone call audio
  During a phone call, audio must be streamed from one ALSA device to
  another ALSA device.  This should only happen during the call, when
