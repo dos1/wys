@@ -10,7 +10,7 @@ include /usr/share/dpkg/buildflags.mk
 # generate a manpage for wys binary based on the help command output of th wys binary
 override_dh_installman:
 	mkdir -p debian/wys/usr/share/man/man1
-	help2man -v --help --name="Daemon to start/stop PulseAudio loopbacks for phone call audio" debian/wys/usr/bin/wys > debian/wys/usr/share/man/man1/wys.1
+	help2man -v --help --no-info --name="Daemon to start/stop PulseAudio loopbacks for phone call audio" debian/wys/usr/bin/wys > debian/wys/usr/share/man/man1/wys.1
 
 execute_after_dh_link:
 	dh_link usr/lib/systemd/user/wys.service usr/lib/systemd/user/default.target.wants/wys.service
