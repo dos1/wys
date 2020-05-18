@@ -7,5 +7,9 @@ include /usr/share/dpkg/buildflags.mk
 %:
 	dh $@ --builddirectory=_build
 
+# generate a manpage for wys binary based on help command output
+execute_after_dh_auto_build:
+	help2man -v --help --name="daemon to start/stop PulseAudio loopbacks for phone call audio" src/wys > debian/wys.1
+
 execute_after_dh_link:
 	dh_link usr/lib/systemd/user/wys.service usr/lib/systemd/user/default.target.wants/wys.service

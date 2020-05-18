@@ -5,6 +5,7 @@ Maintainer: DebianOnMobile Maintainers <debian-on-mobile-maintainers@alioth-list
 Uploaders: Henry-Nicolas Tourneur <debian@nilux.be>
 Build-Depends: debhelper-compat (= 13),
                dh-exec,
+               help2man,
                libglib2.0-dev,
                libmm-glib-dev,
                libpulse-dev,
