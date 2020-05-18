@@ -1,0 +1,2 @@
+#!/usr/bin/dh-exec
+debian/wys.user-service => /usr/lib/systemd/user/wys.service

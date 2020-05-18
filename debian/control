@@ -4,6 +4,7 @@ Priority: optional
 Maintainer: DebianOnMobile Maintainers <debian-on-mobile-maintainers@alioth-lists.debian.net>
 Uploaders: Henry-Nicolas Tourneur <debian@nilux.be>
 Build-Depends: debhelper-compat (= 13),
+               dh-exec,
                libglib2.0-dev,
                libmm-glib-dev,
                libpulse-dev,

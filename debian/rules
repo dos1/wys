@@ -6,3 +6,6 @@ include /usr/share/dpkg/buildflags.mk
 
 %:
 	dh $@ --builddirectory=_build
+
+execute_after_dh_link:
+	dh_link usr/lib/systemd/user/wys.service usr/lib/systemd/user/default.target.wants/wys.service
