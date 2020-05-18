@@ -5,6 +5,12 @@ Source: https://source.puri.sm/Librem5/wys
 Files: *
 Copyright: 2018, 2019 Purism SPC
 License: GPL-3+
+
+Files: debian/*
+Copyright: 2020 Henry-Nicolas Tourneur <debian@nilux.be>
+License: GPL-3+
+
+License: GPL-3+
  This package is free software; you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
  the Free Software Foundation; either version 3 of the License, or
