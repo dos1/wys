@@ -2,14 +2,16 @@ Source: wys
 Section: comm
 Priority: optional
 Maintainer: DebianOnMobile Maintainers <debian-on-mobile-maintainers@alioth-lists.debian.net>
-Uploaders: Henry-Nicolas Tourneur <debian@nilux.be>
-Build-Depends: debhelper-compat (= 13),
-               dh-exec,
-               help2man,
-               libglib2.0-dev,
-               libmm-glib-dev,
-               libpulse-dev,
-               meson
+Uploaders:
+ Henry-Nicolas Tourneur <debian@nilux.be>,
+Build-Depends:
+ debhelper-compat (= 13),
+ dh-exec,
+ help2man,
+ libglib2.0-dev,
+ libmm-glib-dev,
+ libpulse-dev,
+ meson,
 Standards-Version: 4.5.0
 Rules-Requires-Root: no
 Homepage: https://source.puri.sm/Librem5/wys
@@ -18,10 +20,11 @@ Vcs-Browser: https://salsa.debian.org/DebianOnMobile-team/wys
 
 Package: wys
 Architecture: any
-Depends: modemmanager,
-         pulseaudio (>= 12.2-4+deb10u1),
-         ${misc:Depends},
-         ${shlibs:Depends}
+Depends:
+ modemmanager,
+ pulseaudio (>= 12.2-4+deb10u1),
+ ${misc:Depends},
+ ${shlibs:Depends},
 Description: daemon to start/stop PulseAudio loopbacks for phone call audio
  During a phone call, audio must be streamed from one ALSA device to
  another ALSA device.  This should only happen during the call, when
