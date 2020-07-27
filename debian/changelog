@@ -1,3 +1,17 @@
+wys (0.1.8) amber-phone; urgency=high
+
+  [ Bob Ham ]
+  * main: Clarify warning message for no codec or modem specification
+
+  [ Guido Günther ]
+  * debian: Switch to compat level 12
+  * Add machine-confs for Librem 5r2 and r3
+    meson fails at copying symlinked dirs so symlink the files only.
+  * Add gitlab-ci
+  * Add gbp.conf
+
+ -- Guido Günther <agx@sigxcpu.org>  Tue, 21 Jul 2020 15:53:48 +0200
+
 wys (0.1.7) amber-phone; urgency=medium
 
   * main: Fix interface name comparison check during interface removal
