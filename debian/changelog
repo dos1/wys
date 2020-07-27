@@ -1,3 +1,9 @@
+wys (0.1.8-1) unstable; urgency=medium
+
+  * New upstream release
+
+ -- Henry-Nicolas Tourneur <debian@nilux.be>  Mon, 27 Jul 2020 09:45:18 +0000
+
 wys (0.1.7-1) unstable; urgency=medium
 
   * Initial release. Closes: #960460
