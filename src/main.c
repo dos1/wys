@@ -588,7 +588,9 @@ ensure_alsa_card (const gchar  *machine,
         }
     }
 
-  g_warning ("No %s specified, refusing to run", key);
+  g_warning ("No %s specified with a machine configuration file"
+             ", environment variable or command line option"
+             "; refusing to run", key);
   exit (EXIT_SUCCESS);
 }
 
