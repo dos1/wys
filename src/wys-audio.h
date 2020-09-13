@@ -35,8 +35,7 @@ G_BEGIN_DECLS
 
 G_DECLARE_FINAL_TYPE (WysAudio, wys_audio, WYS, AUDIO, GObject);
 
-WysAudio *wys_audio_new                (const gchar  *codec,
-                                        const gchar  *modem);
+WysAudio *wys_audio_new                (const gchar  *modem);
 void      wys_audio_ensure_loopback    (WysAudio     *self,
                                         WysDirection  direction);
 void      wys_audio_ensure_no_loopback (WysAudio     *self,
