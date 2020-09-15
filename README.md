@@ -28,17 +28,16 @@ to do the following:
 
 ## Running
 Wys is usually run as a systemd user service.  To run it by hand,
-the program takes two options, --codec and --modem.  These should
-specify the ALSA card names of the codec and modem ALSA devices.  That
+the program takes one option, --modem.  It should
+specify the ALSA card name of the modem ALSA device.  That
 is, the value of the "alsa.card_name" property of the device's
 PulseAudio sink or source.
 
-  $ wys --codec sgtl5000 --modem "SIMCom SIM7100"
+  $ wys --modem "SIMCom SIM7100"
 
-You can also set the WYS_CODEC or WYS_MODEM environment variables with
+You can also set the WYS_MODEM environment variable with
 the same information.
 
-  $ export WYS_CODEC=sgtl5000
   $ export WYS_MODEM="SIMCom SIM7100"
   $ wys
 
