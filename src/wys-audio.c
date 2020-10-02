@@ -111,8 +111,8 @@ set_up_audio_context (WysAudio *self)
       wys_error ("Error creating PulseAudio main loop");
     }
 
-  self->ctx = pa_context_new (pa_glib_mainloop_get_api (self->loop),
-                              APPLICATION_NAME);
+  self->ctx = pa_context_new_with_proplist (pa_glib_mainloop_get_api (self->loop),
+                                            APPLICATION_NAME, props);
   if (!self->ctx)
     {
       wys_error ("Error creating PulseAudio context");
@@ -134,6 +134,7 @@ set_up_audio_context (WysAudio *self)
     }
 
   pa_context_set_state_callback (self->ctx, NULL, NULL);
+  pa_proplist_free (props);
 }
 
 
