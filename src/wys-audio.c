@@ -950,7 +950,7 @@ static void
 instantiate_loopback_load_module (struct instantiate_loopback_data *data)
 {
   pa_proplist *stream_props;
-  gchar *stream_props_str;
+  gchar *stream_sink_props_str, *stream_source_props_str;
   gchar *arg;
   pa_operation *op;
 
@@ -960,13 +960,32 @@ instantiate_loopback_load_module (struct instantiate_loopback_data *data)
            data->master,
            data->alsa_card);
 
+  // sink properties
   stream_props = pa_proplist_new ();
   g_assert (stream_props != NULL);
   proplist_set (stream_props, "media.role", "phone");
   proplist_set (stream_props, "media.icon_name", "phone");
   proplist_set (stream_props, "media.name", data->media_name);
+  if (data->direction == WYS_DIRECTION_FROM_NETWORK)
+    {
+      proplist_set (stream_props, "filter.want", "echo-cancel");
+    }
 
-  stream_props_str = pa_proplist_to_string (stream_props);
+  stream_sink_props_str = pa_proplist_to_string (stream_props);
+  pa_proplist_free (stream_props);
+
+  // source properties
+  stream_props = pa_proplist_new ();
+  g_assert (stream_props != NULL);
+  proplist_set (stream_props, "media.role", "phone");
+  proplist_set (stream_props, "media.icon_name", "phone");
+  proplist_set (stream_props, "media.name", data->media_name);
+  if (data->direction == WYS_DIRECTION_TO_NETWORK)
+    {
+      proplist_set (stream_props, "filter.want", "echo-cancel");
+    }
+
+  stream_source_props_str = pa_proplist_to_string (stream_props);
   pa_proplist_free (stream_props);
 
   arg = g_strdup_printf ("%s=%s"
@@ -978,9 +997,10 @@ instantiate_loopback_load_module (struct instantiate_loopback_data *data)
                          data->direction == WYS_DIRECTION_FROM_NETWORK ? "source" : "sink",
                          data->master,
                          data->direction == WYS_DIRECTION_FROM_NETWORK ? "source" : "sink",
-                         stream_props_str,
-                         stream_props_str);
-  pa_xfree (stream_props_str);
+                         stream_sink_props_str,
+                         stream_source_props_str);
+  pa_xfree (stream_sink_props_str);
+  pa_xfree (stream_source_props_str);
 
   op = pa_context_load_module (data->ctx,
                                "module-loopback",
