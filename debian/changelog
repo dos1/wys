@@ -1,3 +1,15 @@
+wys (0.1.9) amber-phone; urgency=medium
+
+  [ Sebastian Krzyszkowiak ]
+  * Get rid of codec handling
+  * Request echo cancellation from PulseAudio on mic and speaker streams
+
+  [ Guido Günther ]
+  * gitlab-ci: Honor PKG_ONLY
+  * audio: Actually set appliction props
+
+ -- Martin Kepplinger <martin.kepplinger@puri.sm>  Wed, 04 Nov 2020 16:31:55 +0100
+
 wys (0.1.8) amber-phone; urgency=high
 
   [ Bob Ham ]
