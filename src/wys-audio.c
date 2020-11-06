@@ -35,7 +35,6 @@ struct _WysAudio
 {
   GObject parent_instance;
 
-  gchar             *codec;
   gchar             *modem;
   pa_glib_mainloop  *loop;
   pa_context        *ctx;
@@ -46,7 +45,6 @@ G_DEFINE_TYPE (WysAudio, wys_audio, G_TYPE_OBJECT);
 
 enum {
   PROP_0,
-  PROP_CODEC,
   PROP_MODEM,
   PROP_LAST_PROP,
 };
@@ -113,8 +111,8 @@ set_up_audio_context (WysAudio *self)
       wys_error ("Error creating PulseAudio main loop");
     }
 
-  self->ctx = pa_context_new (pa_glib_mainloop_get_api (self->loop),
-                              APPLICATION_NAME);
+  self->ctx = pa_context_new_with_proplist (pa_glib_mainloop_get_api (self->loop),
+                                            APPLICATION_NAME, props);
   if (!self->ctx)
     {
       wys_error ("Error creating PulseAudio context");
@@ -136,6 +134,7 @@ set_up_audio_context (WysAudio *self)
     }
 
   pa_context_set_state_callback (self->ctx, NULL, NULL);
+  pa_proplist_free (props);
 }
 
 
@@ -148,10 +147,6 @@ set_property (GObject      *object,
   WysAudio *self = WYS_AUDIO (object);
 
   switch (property_id) {
-  case PROP_CODEC:
-    self->codec = g_value_dup_string (value);
-    break;
-
   case PROP_MODEM:
     self->modem = g_value_dup_string (value);
     break;
@@ -203,7 +198,6 @@ finalize (GObject *object)
   WysAudio *self = WYS_AUDIO (object);
 
   g_free (self->modem);
-  g_free (self->codec);
 
   parent_class->finalize (object);
 }
@@ -218,13 +212,6 @@ wys_audio_class_init (WysAudioClass *klass)
   object_class->constructed  = constructed;
   object_class->dispose      = dispose;
   object_class->finalize     = finalize;
-
-  props[PROP_CODEC] =
-    g_param_spec_string ("codec",
-                         _("Codec"),
-                         _("The ALSA card name for the codec"),
-                         "sgtl5000",
-                         G_PARAM_WRITABLE | G_PARAM_CONSTRUCT_ONLY);
 
   props[PROP_MODEM] =
     g_param_spec_string ("modem",
@@ -244,11 +231,9 @@ wys_audio_init (WysAudio *self)
 
 
 WysAudio *
-wys_audio_new (const gchar *codec,
-               const gchar *modem)
+wys_audio_new (const gchar *modem)
 {
   return g_object_new (WYS_TYPE_AUDIO,
-                       "codec", codec,
                        "modem", modem,
                        NULL);
 }
@@ -388,16 +373,16 @@ props_name_alsa_card (pa_proplist *props,
 
 /**************** Find loopback data ****************/
 
-typedef void (*FindLoopbackCallback) (gchar *source_alsa_card,
-                                      gchar *sink_alsa_card,
+typedef void (*FindLoopbackCallback) (gchar *alsa_card,
+                                      WysDirection direction,
                                       GList *modules,
                                       gpointer userdata);
 
 
 struct find_loopback_data
 {
-  gchar *source_alsa_card;
-  gchar *sink_alsa_card;
+  gchar *alsa_card;
+  WysDirection direction;
   GCallback callback;
   gpointer userdata;
   GList *modules;
@@ -405,14 +390,14 @@ struct find_loopback_data
 
 
 static struct find_loopback_data *
-find_loopback_data_new (const gchar *source_alsa_card,
-                        const gchar *sink_alsa_card)
+find_loopback_data_new (const gchar *alsa_card,
+                        WysDirection direction)
 {
   struct find_loopback_data *data;
 
   data = g_rc_box_new0 (struct find_loopback_data);
-  data->source_alsa_card = g_strdup (source_alsa_card);
-  data->sink_alsa_card = g_strdup (sink_alsa_card);
+  data->alsa_card = g_strdup (alsa_card);
+  data->direction = direction;
 
   return data;
 }
@@ -423,14 +408,13 @@ find_loopback_data_clear (struct find_loopback_data *data)
 {
   FindLoopbackCallback func = (FindLoopbackCallback)data->callback;
 
-  func (data->source_alsa_card,
-        data->sink_alsa_card,
+  func (data->alsa_card,
+        data->direction,
         data->modules,
         data->userdata);
 
   g_list_free (data->modules);
-  g_free (data->sink_alsa_card);
-  g_free (data->source_alsa_card);
+  g_free (data->alsa_card);
 }
 
 
@@ -481,118 +465,6 @@ loopback_module_data_release (struct loopback_module_data *module_data)
 }
 
 
-/**************** Sink ****************/
-
-static void
-find_loopback_get_sink_cb (pa_context *ctx,
-                           const pa_sink_info *info,
-                           struct loopback_module_data *module_data)
-{
-  struct find_loopback_data *loopback_data = module_data->loopback_data;
-
-  if (!info)
-    {
-      g_warning ("Could not get sink for module %" PRIu32
-                 " owning ALSA card `%s' source output",
-                 module_data->module_index,
-                 loopback_data->source_alsa_card);
-      goto release;
-    }
-
-  if (!props_name_alsa_card (info->proplist,
-                             loopback_data->sink_alsa_card))
-    {
-      g_debug ("Sink %" PRIu32 " `%s' for module %" PRIu32
-               " is not ALSA card `%s'",
-               info->index, info->name,
-               module_data->module_index,
-               loopback_data->sink_alsa_card);
-      goto release;
-    }
-
-
-  g_debug ("Loopback module %" PRIu32 " has ALSA card `%s' source"
-           " and ALSA card `%s' sink",
-           module_data->module_index,
-           loopback_data->source_alsa_card,
-           loopback_data->sink_alsa_card);
-
-  loopback_data->modules = g_list_append
-    (loopback_data->modules,
-     GUINT_TO_POINTER (module_data->module_index));
-
- release:
-  loopback_module_data_release (module_data);
-}
-
-/**************** Sink input list ****************/
-
-static void
-find_loopback_sink_input_list_cb (pa_context *ctx,
-                                  const pa_sink_input_info *info,
-                                  int eol,
-                                  void *userdata)
-{
-  struct loopback_module_data *module_data = userdata;
-  struct find_loopback_data *loopback_data = module_data->loopback_data;
-
-  if (eol == -1)
-    {
-      wys_error ("Error listing sink inputs: %s",
-                 pa_strerror (pa_context_errno (ctx)));
-    }
-
-  if (eol)
-    {
-      g_debug ("End of sink input list reached");
-      loopback_module_data_release (module_data);
-      return;
-    }
-
-  if (info->owner_module != module_data->module_index)
-    {
-      g_debug ("Sink input %" PRIu32 " `%s' has"
-               " owner module %" PRIu32 " which does"
-               " not match sought module %" PRIu32
-               " for ALSA card `%s' source output",
-               info->index,
-               info->name,
-               info->owner_module,
-               module_data->module_index,
-               loopback_data->source_alsa_card);
-      return;
-    }
-
-  g_debug ("Checking whether sink %" PRIu32
-           " for sink input %" PRIu32
-           " `%s' owned by module %" PRIu32
-           " has ALSA card name `%s'",
-           info->sink,
-           info->index,
-           info->name,
-           info->owner_module,
-           loopback_data->sink_alsa_card);
-
-  g_rc_box_acquire (module_data);
-  get_sink (ctx,
-            info->sink,
-            G_CALLBACK (find_loopback_get_sink_cb),
-            module_data);
-}
-
-static void
-find_sink_input (pa_context *ctx,
-                 struct loopback_module_data *module_data)
-{
-  pa_operation *op;
-
-  op = pa_context_get_sink_input_info_list
-    (ctx, find_loopback_sink_input_list_cb, module_data);
-
-  pa_operation_unref (op);
-}
-
-
 /**************** Module ****************/
 
 static void
@@ -605,30 +477,121 @@ find_loopback_get_module_cb (pa_context *ctx,
   if (!info)
     {
       g_warning ("Could not get module %" PRIu32
-                 " for ALSA card `%s' source output",
+                 " for ALSA card `%s' %s",
                  module_data->module_index,
-                 loopback_data->source_alsa_card);
+                 loopback_data->alsa_card,
+                 loopback_data->direction == WYS_DIRECTION_FROM_NETWORK ? "source output" : "sink input");
       loopback_module_data_release (module_data);
       return;
     }
 
   if (strcmp (info->name, "module-loopback") != 0)
     {
-      g_debug ("Module %" PRIu32 " for ALSA card `%s` source output"
+      g_debug ("Module %" PRIu32 " for ALSA card `%s` %s"
                " is not a loopback module",
-               info->index, loopback_data->source_alsa_card);
+               info->index, loopback_data->alsa_card,
+               loopback_data->direction == WYS_DIRECTION_FROM_NETWORK ? "source output" : "sink input");
       loopback_module_data_release (module_data);
       return;
     }
 
 
-  g_debug ("Module %" PRIu32 " for ALSA card `%s' source output is a"
-           " loopback module, finding sink input with matching module",
-           info->index, loopback_data->source_alsa_card);
+  g_debug ("Module %" PRIu32 " for ALSA card `%s' %s is a"
+           " loopback module",
+           info->index, loopback_data->alsa_card,
+           loopback_data->direction == WYS_DIRECTION_FROM_NETWORK ? "source output" : "sink input");
 
-  find_sink_input (ctx, module_data);
+  loopback_data->modules = g_list_append
+    (loopback_data->modules,
+     GUINT_TO_POINTER (module_data->module_index));
+
+  loopback_module_data_release (module_data);
 }
 
+/**************** Sink ****************/
+
+static void
+find_loopback_get_sink_cb (pa_context *ctx,
+                           const pa_sink_info *info,
+                           struct loopback_module_data *module_data)
+{
+  struct find_loopback_data *loopback_data = module_data->loopback_data;
+
+  if (!info)
+    {
+      g_warning ("Couldn't find sink for sink input"
+                 " while finding ALSA card `%s' sink",
+                 loopback_data->alsa_card);
+      loopback_module_data_release (module_data);
+      return;
+    }
+
+  if (!props_name_alsa_card (info->proplist,
+                             loopback_data->alsa_card))
+    {
+      g_debug ("Sink %" PRIu32 " `%s' is not ALSA card `%s'",
+               info->index, info->name,
+               loopback_data->alsa_card);
+      loopback_module_data_release (module_data);
+      return;
+    }
+
+
+  g_debug ("Checking whether module %" PRIu32
+           " for ALSA card `%s' sink input"
+           " is a loopback module",
+           module_data->module_index,
+           loopback_data->alsa_card);
+
+  get_module (ctx,
+              module_data->module_index,
+              G_CALLBACK (find_loopback_get_module_cb),
+              module_data);
+}
+
+/**************** Sink input list ****************/
+
+static void
+find_loopback_sink_input_list_cb (pa_context *ctx,
+                                  const pa_sink_input_info *info,
+                                  int eol,
+                                  void *userdata)
+{
+  struct find_loopback_data *loopback_data = userdata;
+  struct loopback_module_data *module_data;
+
+  if (eol == -1)
+    {
+      wys_error ("Error listing PulseAudio source outputs: %s",
+                 pa_strerror (pa_context_errno (ctx)));
+    }
+
+  if (eol)
+    {
+      g_debug ("End of sink input list reached");
+      find_loopback_data_release (loopback_data);
+      return;
+    }
+
+  if (info->owner_module == PA_INVALID_INDEX)
+    {
+      g_debug ("Sink input %" PRIu32 " `%s'"
+               " is not owned by a module",
+               info->index, info->name);
+      return;
+    }
+
+  module_data = loopback_module_data_new (loopback_data,
+                                          info->owner_module);
+
+  g_debug ("Getting sink %" PRIu32
+           " of sink input %" PRIu32 " `%s'",
+           info->sink, info->index, info->name);
+  get_sink (ctx,
+              info->sink,
+              G_CALLBACK (find_loopback_get_sink_cb),
+              module_data);
+}
 
 /**************** Source ****************/
 
@@ -643,17 +606,17 @@ find_loopback_get_source_cb (pa_context *ctx,
     {
       g_warning ("Couldn't find source for source output"
                  " while finding ALSA card `%s' source",
-                 loopback_data->source_alsa_card);
+                 loopback_data->alsa_card);
       loopback_module_data_release (module_data);
       return;
     }
 
   if (!props_name_alsa_card (info->proplist,
-                             loopback_data->source_alsa_card))
+                             loopback_data->alsa_card))
     {
       g_debug ("Source %" PRIu32 " `%s' is not ALSA card `%s'",
                info->index, info->name,
-               loopback_data->source_alsa_card);
+               loopback_data->alsa_card);
       loopback_module_data_release (module_data);
       return;
     }
@@ -663,7 +626,7 @@ find_loopback_get_source_cb (pa_context *ctx,
            " for ALSA card `%s' source output"
            " is a loopback module",
            module_data->module_index,
-           loopback_data->source_alsa_card);
+           loopback_data->alsa_card);
 
   get_module (ctx,
               module_data->module_index,
@@ -717,39 +680,48 @@ find_loopback_source_output_list_cb (pa_context *ctx,
 }
 
 
-/** Find any loopback module between the specified source and sink
-    alsa cards.
+/** Find any loopback module for the specified source or sink
+    alsa card.
 
-    1. Loop through all source outputs.
-      1. Skip any source output that doesn't have the specified
+    1. Loop through all source outputs / sink outputs.
+      1. Skip any source output / sink input that doesn't have the specified
       alsa card as its source.
-      2. Skip any source output that isn't a loopback module.
-      3. Loop through all sink inputs.
-        1. Skip any sink input whose module index doesn't match.
-        2. Skip any sink input which doesn't have the specified alsa
-        card as its sink.
-        3. Found a loopback.
+      2. Skip any source output / sink input that isn't a loopback module.
+      3. Found a loopback.
 */
 static void
 find_loopback (pa_context *ctx,
-               const gchar *source_alsa_card,
-               const gchar *sink_alsa_card,
+               const gchar *alsa_card,
+               WysDirection direction,
                GCallback callback,
                gpointer userdata)
 {
   struct find_loopback_data *data;
   pa_operation *op;
 
-  data = find_loopback_data_new (source_alsa_card, sink_alsa_card);
+  data = find_loopback_data_new (alsa_card, direction);
   data->callback = callback;
   data->userdata = userdata;
 
-  g_debug ("Finding ALSA card `%s' source output",
-           source_alsa_card);
-  op = pa_context_get_source_output_info_list
-    (ctx, find_loopback_source_output_list_cb, data);
-
-  pa_operation_unref (op);
+  switch (direction)
+    {
+    case WYS_DIRECTION_FROM_NETWORK:
+      g_debug ("Finding ALSA card `%s' source output",
+               alsa_card);
+      op = pa_context_get_source_output_info_list
+        (ctx, find_loopback_source_output_list_cb, data);
+      pa_operation_unref (op);
+      break;
+    case WYS_DIRECTION_TO_NETWORK:
+      g_debug ("Finding ALSA card `%s' sink input",
+               alsa_card);
+      op = pa_context_get_sink_input_info_list
+        (ctx, find_loopback_sink_input_list_cb, data);
+      pa_operation_unref (op);
+      break;
+    default:
+      break;
+    }
 }
 
 
@@ -888,28 +860,26 @@ DECLARE_FIND_ALSA_CARD(sink);
 
 /**************** Instantiate loopback data ****************/
 
-typedef void (*InstantiateLoopbackCallback) (gchar *source_alsa_card,
-                                             gchar *sink_alsa_card,
-                                             gchar *source,
-                                             gchar *sink,
+typedef void (*InstantiateLoopbackCallback) (gchar *alsa_card,
+                                             WysDirection direction,
+                                             gchar *master,
                                              gpointer userdata);
 
 
 struct instantiate_loopback_data
 {
   pa_context *ctx;
-  gchar *source_alsa_card;
-  gchar *sink_alsa_card;
+  gchar *alsa_card;
+  WysDirection direction;
   gchar *media_name;
-  gchar *source;
-  gchar *sink;
+  gchar *master;
 };
 
 
 static struct instantiate_loopback_data *
 instantiate_loopback_data_new (pa_context *ctx,
-                               const gchar *source_alsa_card,
-                               const gchar *sink_alsa_card,
+                               const gchar *alsa_card,
+                               WysDirection direction,
                                const gchar *media_name)
 {
   struct instantiate_loopback_data *data;
@@ -919,8 +889,8 @@ instantiate_loopback_data_new (pa_context *ctx,
   pa_context_ref (ctx);
   data->ctx = ctx;
 
-  data->source_alsa_card = g_strdup (source_alsa_card);
-  data->sink_alsa_card = g_strdup (sink_alsa_card);
+  data->alsa_card = g_strdup (alsa_card);
+  data->direction = direction;
   data->media_name = g_strdup (media_name);
 
   return data;
@@ -930,11 +900,9 @@ instantiate_loopback_data_new (pa_context *ctx,
 static void
 instantiate_loopback_data_clear (struct instantiate_loopback_data *data)
 {
-  g_free (data->sink);
-  g_free (data->source);
+  g_free (data->master);
   g_free (data->media_name);
-  g_free (data->sink_alsa_card);
-  g_free (data->source_alsa_card);
+  g_free (data->alsa_card);
   pa_context_unref (data->ctx);
 }
 
@@ -957,24 +925,21 @@ instantiate_loopback_load_module_cb (pa_context *ctx,
 
   if (index == PA_INVALID_INDEX)
     {
-      g_warning ("Error instantiating loopback module with source `%s'"
-                 " (ALSA card `%s') and sink `%s' (ALSA card `%s'): %s",
-                 data->source,
-                 data->source_alsa_card,
-                 data->sink,
-                 data->sink_alsa_card,
+      g_warning ("Error instantiating loopback module with %s `%s'"
+                 " (ALSA card `%s'): %s",
+                 data->direction == WYS_DIRECTION_FROM_NETWORK ? "source" : "sink",
+                 data->master,
+                 data->alsa_card,
                  pa_strerror (pa_context_errno (ctx)));
     }
   else
     {
       g_debug ("Instantiated loopback module %" PRIu32
-               " with source `%s' (ALSA card `%s')"
-               " and sink `%s' (ALSA card `%s')",
+               " with %s `%s' (ALSA card `%s')",
                index,
-               data->source,
-               data->source_alsa_card,
-               data->sink,
-               data->sink_alsa_card);
+               data->direction == WYS_DIRECTION_FROM_NETWORK ? "source" : "sink",
+               data->master,
+               data->alsa_card);
     }
 
   instantiate_loopback_data_release (data);
@@ -982,55 +947,60 @@ instantiate_loopback_load_module_cb (pa_context *ctx,
 
 
 static void
-instantiate_loopback_sink_cb (const gchar *alsa_card_name,
-                              const gchar *pulse_object_name,
-                              gpointer userdata)
+instantiate_loopback_load_module (struct instantiate_loopback_data *data)
 {
-  struct instantiate_loopback_data *data = userdata;
   pa_proplist *stream_props;
-  gchar *stream_props_str;
+  gchar *stream_sink_props_str, *stream_source_props_str;
   gchar *arg;
   pa_operation *op;
 
-  if (!pulse_object_name)
-    {
-      g_warning ("Could not find sink for ALSA card `%s'",
-                 alsa_card_name);
-      instantiate_loopback_data_release (data);
-      return;
-    }
+  g_debug ("Instantiating loopback module with %s `%s'"
+           " (ALSA card `%s')",
+           data->direction == WYS_DIRECTION_FROM_NETWORK ? "source" : "sink",
+           data->master,
+           data->alsa_card);
 
-  data->sink = g_strdup (pulse_object_name);
-
-  g_debug ("Instantiating loopback module with source `%s'"
-           " (ALSA card `%s') and sink `%s' (ALSA card `%s')",
-           data->source,
-           data->source_alsa_card,
-           data->sink,
-           data->sink_alsa_card);
-
+  // sink properties
   stream_props = pa_proplist_new ();
   g_assert (stream_props != NULL);
   proplist_set (stream_props, "media.role", "phone");
   proplist_set (stream_props, "media.icon_name", "phone");
   proplist_set (stream_props, "media.name", data->media_name);
+  if (data->direction == WYS_DIRECTION_FROM_NETWORK)
+    {
+      proplist_set (stream_props, "filter.want", "echo-cancel");
+    }
 
-  stream_props_str = pa_proplist_to_string (stream_props);
+  stream_sink_props_str = pa_proplist_to_string (stream_props);
   pa_proplist_free (stream_props);
-  
-  arg = g_strdup_printf ("source=%s"
-                         " sink=%s"
-                         " source_dont_move=true"
-                         " sink_dont_move=true"
+
+  // source properties
+  stream_props = pa_proplist_new ();
+  g_assert (stream_props != NULL);
+  proplist_set (stream_props, "media.role", "phone");
+  proplist_set (stream_props, "media.icon_name", "phone");
+  proplist_set (stream_props, "media.name", data->media_name);
+  if (data->direction == WYS_DIRECTION_TO_NETWORK)
+    {
+      proplist_set (stream_props, "filter.want", "echo-cancel");
+    }
+
+  stream_source_props_str = pa_proplist_to_string (stream_props);
+  pa_proplist_free (stream_props);
+
+  arg = g_strdup_printf ("%s=%s"
+                         " %s_dont_move=true"
                          " fast_adjust_threshold_msec=100"
                          " max_latency_msec=25"
                          " sink_input_properties='%s'"
                          " source_output_properties='%s'",
-                         data->source,
-                         data->sink,
-                         stream_props_str,
-                         stream_props_str);
-  pa_xfree (stream_props_str);
+                         data->direction == WYS_DIRECTION_FROM_NETWORK ? "source" : "sink",
+                         data->master,
+                         data->direction == WYS_DIRECTION_FROM_NETWORK ? "source" : "sink",
+                         stream_sink_props_str,
+                         stream_source_props_str);
+  pa_xfree (stream_sink_props_str);
+  pa_xfree (stream_source_props_str);
 
   op = pa_context_load_module (data->ctx,
                                "module-loopback",
@@ -1042,9 +1012,8 @@ instantiate_loopback_sink_cb (const gchar *alsa_card_name,
   g_free (arg);
 }
 
-
 static void
-instantiate_loopback_source_cb (const gchar *alsa_card_name,
+instantiate_loopback_master_cb (const gchar *alsa_card_name,
                                 const gchar *pulse_object_name,
                                 gpointer userdata)
 {
@@ -1052,40 +1021,50 @@ instantiate_loopback_source_cb (const gchar *alsa_card_name,
 
   if (!pulse_object_name)
     {
-      g_warning ("Could not find source for ALSA card `%s'",
+      g_warning ("Could not find source/sink for ALSA card `%s'",
                  alsa_card_name);
       instantiate_loopback_data_release (data);
       return;
     }
 
-  data->source = g_strdup (pulse_object_name);
+  data->master = g_strdup (pulse_object_name);
 
-  g_debug ("Finding sink for ALSA card `%s'", data->sink_alsa_card);
-  find_alsa_card_sink (data->ctx,
-                       data->sink_alsa_card,
-                       G_CALLBACK (instantiate_loopback_sink_cb),
-                       data);
+  instantiate_loopback_load_module (data);
 }
 
 
 static void
 instantiate_loopback (pa_context *ctx,
-                      const gchar *source_alsa_card,
-                      const gchar *sink_alsa_card,
+                      const gchar *alsa_card,
+                      WysDirection direction,
                       const gchar *media_name)
 {
   struct instantiate_loopback_data *loopback_data;
 
   loopback_data = instantiate_loopback_data_new (ctx,
-                                                 source_alsa_card,
-                                                 sink_alsa_card,
+                                                 alsa_card,
+                                                 direction,
                                                  media_name);
 
-  g_debug ("Finding source for ALSA card `%s'", source_alsa_card);
-  find_alsa_card_source (ctx,
-                         source_alsa_card,
-                         G_CALLBACK (instantiate_loopback_source_cb),
-                         loopback_data);
+  switch (direction)
+    {
+    case WYS_DIRECTION_FROM_NETWORK:
+      g_debug ("Finding source for ALSA card `%s'", alsa_card);
+      find_alsa_card_source (ctx,
+                             alsa_card,
+                             G_CALLBACK (instantiate_loopback_master_cb),
+                             loopback_data);
+      break;
+    case WYS_DIRECTION_TO_NETWORK:
+      g_debug ("Finding sink for ALSA card `%s'", alsa_card);
+      find_alsa_card_sink (ctx,
+                           alsa_card,
+                           G_CALLBACK (instantiate_loopback_master_cb),
+                           loopback_data);
+      break;
+    default:
+      break;
+    }
 }
 
 
@@ -1099,26 +1078,27 @@ struct ensure_loopback_data
 
 
 static void
-ensure_loopback_find_loopback_cb (gchar *source_alsa_card,
-                                  gchar *sink_alsa_card,
+ensure_loopback_find_loopback_cb (gchar *alsa_card,
+                                  WysDirection direction,
                                   GList *modules,
                                   struct ensure_loopback_data *data)
 {
   if (modules != NULL)
     {
-      g_warning ("%u loopback module(s) for ALSA card `%s' source ->"
-                 " ALSA card `%s' sink already exist",
+      g_warning ("%u loopback module(s) for ALSA card `%s' %s ->"
+                 " already exist",
                  g_list_length (modules),
-                 source_alsa_card, sink_alsa_card);
+                 alsa_card,
+                 direction == WYS_DIRECTION_FROM_NETWORK ? "source" : "sink");
     }
   else
     {
-      g_debug ("Instantiating loopback module for ALSA card `%s' source ->"
-               " ALSA card `%s' sink",
-               source_alsa_card, sink_alsa_card);
+      g_debug ("Instantiating loopback module for ALSA card `%s' %s",
+               alsa_card,
+               direction == WYS_DIRECTION_FROM_NETWORK ? "source" : "sink");
 
-      instantiate_loopback (data->ctx, source_alsa_card,
-                            sink_alsa_card, data->media_name);
+      instantiate_loopback (data->ctx, alsa_card,
+                            direction, data->media_name);
     }
 
   g_free (data);
@@ -1127,8 +1107,8 @@ ensure_loopback_find_loopback_cb (gchar *source_alsa_card,
 
 static void
 ensure_loopback (pa_context *ctx,
-                 const gchar *source_alsa_card,
-                 const gchar *sink_alsa_card,
+                 const gchar *alsa_card,
+                 WysDirection  direction,
                  const gchar *media_name)
 {
   struct ensure_loopback_data *data;
@@ -1137,8 +1117,7 @@ ensure_loopback (pa_context *ctx,
   data->ctx = ctx;
   // This is a static string so we don't need a copy
   data->media_name = media_name;
-
-  find_loopback (ctx, source_alsa_card, sink_alsa_card,
+  find_loopback (ctx, alsa_card, direction,
                  G_CALLBACK (ensure_loopback_find_loopback_cb),
                  data);
 }
@@ -1151,11 +1130,11 @@ wys_audio_ensure_loopback (WysAudio     *self,
   switch (direction)
     {
     case WYS_DIRECTION_FROM_NETWORK:
-      ensure_loopback (self->ctx, self->modem, self->codec,
+      ensure_loopback (self->ctx, self->modem, direction,
                        "Voice call audio (to speaker)");
       break;
     case WYS_DIRECTION_TO_NETWORK:
-      ensure_loopback (self->ctx, self->codec, self->modem,
+      ensure_loopback (self->ctx, self->modem, direction,
                        "Voice call audio (from mic)");
       break;
     default:
@@ -1207,22 +1186,22 @@ ensure_no_loopback_modules_cb (gpointer data,
 
 
 static void
-ensure_no_loopback_find_loopback_cb (gchar *source_alsa_card,
-                                     gchar *sink_alsa_card,
+ensure_no_loopback_find_loopback_cb (gchar *alsa_card,
+                                     WysDirection direction,
                                      GList *modules,
                                      pa_context *ctx)
 {
   if (modules == NULL)
     {
-      g_warning ("No loopback module(s) for ALSA card `%s' source ->"
-                 " ALSA card `%s' sink",
-                 source_alsa_card, sink_alsa_card);
+      g_warning ("No loopback module(s) for ALSA card `%s' %s",
+                 alsa_card,
+                 direction == WYS_DIRECTION_FROM_NETWORK ? "source" : "sink");
       return;
     }
 
-  g_debug ("Deinstantiating loopback modules for ALSA card `%s' source ->"
-           " ALSA card `%s' sink",
-           source_alsa_card, sink_alsa_card);
+  g_debug ("Deinstantiating loopback modules for ALSA card `%s' %s",
+           alsa_card,
+           direction == WYS_DIRECTION_FROM_NETWORK ? "source" : "sink");
 
   g_list_foreach (modules,
                   (GFunc)ensure_no_loopback_modules_cb,
@@ -1232,10 +1211,10 @@ ensure_no_loopback_find_loopback_cb (gchar *source_alsa_card,
 
 static void
 ensure_no_loopback (pa_context *ctx,
-                    const gchar *source_alsa_card,
-                    const gchar *sink_alsa_card)
+                    const gchar *alsa_card,
+                    WysDirection direction)
 {
-  find_loopback (ctx, source_alsa_card, sink_alsa_card,
+  find_loopback (ctx, alsa_card, direction,
                  G_CALLBACK (ensure_no_loopback_find_loopback_cb),
                  ctx);
 }
@@ -1245,15 +1224,5 @@ void
 wys_audio_ensure_no_loopback (WysAudio     *self,
                               WysDirection  direction)
 {
-  switch (direction)
-    {
-    case WYS_DIRECTION_FROM_NETWORK:
-      ensure_no_loopback (self->ctx, self->modem, self->codec);
-      break;
-    case WYS_DIRECTION_TO_NETWORK:
-      ensure_no_loopback (self->ctx, self->codec, self->modem);
-      break;
-    default:
-      break;
-    }
+  ensure_no_loopback (self->ctx, self->modem, direction);
 }

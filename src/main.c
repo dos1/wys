@@ -317,10 +317,9 @@ mm_vanished_cb (GDBusConnection *connection,
 
 static void
 set_up (struct wys_data *data,
-        const gchar *codec,
         const gchar *modem)
 {
-  data->audio = wys_audio_new (codec, modem);
+  data->audio = wys_audio_new (modem);
 
   data->modems = g_hash_table_new_full (g_str_hash, g_str_equal,
                                         g_free, g_object_unref);
@@ -348,18 +347,17 @@ tear_down (struct wys_data *data)
 
 
 static void
-run (const gchar *codec,
-     const gchar *modem)
+run (const gchar *modem)
 {
   struct wys_data data;
 
   memset (&data, 0, sizeof (struct wys_data));
-  set_up (&data, codec, modem);
+  set_up (&data, modem);
 
   main_loop = g_main_loop_new (NULL, FALSE);
 
-  printf (APPLICATION_NAME " started with codec `%s', modem `%s'\n",
-          codec, modem);
+  printf (APPLICATION_NAME " started with modem `%s'\n",
+          modem);
   g_main_loop_run (main_loop);
 
   g_main_loop_unref (main_loop);
@@ -601,13 +599,11 @@ main (int argc, char **argv)
   GError *error = NULL;
   GOptionContext *context;
   gboolean ok;
-  g_autofree gchar *codec = NULL;
   g_autofree gchar *modem = NULL;
   g_autofree gchar *machine = NULL;
 
   GOptionEntry options[] =
     {
-      { "codec", 'c', 0, G_OPTION_ARG_STRING, &codec, "Name of the codec's ALSA card", "NAME" },
       { "modem", 'm', 0, G_OPTION_ARG_STRING, &modem, "Name of the modem's ALSA card", "NAME" },
       { NULL }
     };
@@ -640,12 +636,11 @@ main (int argc, char **argv)
       g_strdelimit (machine, G_DIR_SEPARATOR_S, '_');
     }
 
-  ensure_alsa_card (machine, "WYS_CODEC", "codec", &codec);
   ensure_alsa_card (machine, "WYS_MODEM", "modem", &modem);
 
   setup_signals ();
 
-  run (codec, modem);
+  run (modem);
 
   return 0;
 }
