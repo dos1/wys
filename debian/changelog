@@ -1,3 +1,9 @@
+wys (0.1.10) amber-phone; urgency=critical
+
+  * machine-conf: Add config entry for Evergreen
+
+ -- Sebastian Krzyszkowiak <sebastian.krzyszkowiak@puri.sm>  Mon, 16 Nov 2020 00:37:51 +0100
+
 wys (0.1.9) amber-phone; urgency=medium
 
   [ Sebastian Krzyszkowiak ]
