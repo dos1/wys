@@ -1,3 +1,9 @@
+wys (0.1.10-1) unstable; urgency=medium
+
+  * New upstream version 0.1.10
+
+ -- Henry-Nicolas Tourneur <debian@nilux.be>  Fri, 20 Nov 2020 19:10:00 +0000
+
 wys (0.1.9-1) unstable; urgency=medium
 
   * New upstream version 0.1.9
