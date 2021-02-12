@@ -34,6 +34,8 @@
 #include <glib/gstdio.h>
 #include <gio/gunixinputstream.h>
 
+#include <pulse/pulseaudio.h>
+
 #include <stdio.h>
 #include <locale.h>
 #include <fcntl.h>
@@ -357,7 +359,7 @@ run (const gchar *modem)
   main_loop = g_main_loop_new (NULL, FALSE);
 
   printf (APPLICATION_NAME " started with modem `%s'\n",
-          modem);
+          modem ? modem : "(none)");
   g_main_loop_run (main_loop);
 
   g_main_loop_unref (main_loop);
@@ -586,10 +588,7 @@ ensure_alsa_card (const gchar  *machine,
         }
     }
 
-  g_warning ("No %s specified with a machine configuration file"
-             ", environment variable or command line option"
-             "; refusing to run", key);
-  exit (EXIT_SUCCESS);
+  g_debug ("No predefined modem found, detecting dynamically.");
 }
 
 
