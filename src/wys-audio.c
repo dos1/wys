@@ -1165,6 +1165,9 @@ void
 wys_audio_ensure_loopback (WysAudio     *self,
                            WysDirection  direction)
 {
+  g_return_if_fail (WYS_IS_AUDIO (self));
+  g_return_if_fail (self->modem);
+
   switch (direction)
     {
     case WYS_DIRECTION_FROM_NETWORK:
@@ -1262,5 +1265,8 @@ void
 wys_audio_ensure_no_loopback (WysAudio     *self,
                               WysDirection  direction)
 {
+  g_return_if_fail (WYS_IS_AUDIO (self));
+  g_return_if_fail (self->modem);
+
   ensure_no_loopback (self->ctx, self->modem, direction);
 }
