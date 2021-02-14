@@ -22,7 +22,7 @@
 project (
   'wys',
   'c',
-  version : '0.1.7',
+  version : '0.1.10',
   license : 'GPLv3+',
   meson_version : '>= 0.42.0',
   default_options :
