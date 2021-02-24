@@ -1,3 +1,10 @@
+wys (0.1.11-1) unstable; urgency=medium
+
+  * New upstream version 0.1.11
+  * d/gbp.conf: Adjust to upstream tag pattern
+
+ -- Guido Günther <agx@sigxcpu.org>  Wed, 24 Feb 2021 14:06:15 +0100
+
 wys (0.1.10-1) unstable; urgency=medium
 
   * New upstream version 0.1.10
