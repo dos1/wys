@@ -1,3 +1,21 @@
+wys (0.1.11) byzantium; urgency=medium
+
+  [ Guido Günther ]
+  * wys-audio: Detect modem by device.class.
+    This keeps the card names, to the kernel and ucm. (Closes: #6)
+  * Drop machine-conf for Librem 5.
+    We don't use it there. But let's keep the logic in case
+    it's of use to other platforms
+  * wys-audio: Guard public methods.
+    This makes sure we get the right type passed in and
+    also don't crash when there's no modem.
+  * d/gbp.conf: Automatically bump meson version
+
+  [ Danct12 ]
+  * meson.build: bump version to 0.1.10
+
+ -- Guido Günther <agx@sigxcpu.org>  Tue, 23 Feb 2021 13:14:41 +0100
+
 wys (0.1.10) amber-phone; urgency=critical
 
   * machine-conf: Add config entry for Evergreen
