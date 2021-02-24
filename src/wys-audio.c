@@ -38,6 +38,7 @@ struct _WysAudio
   gchar             *modem;
   pa_glib_mainloop  *loop;
   pa_context        *ctx;
+  gboolean           ready;
 };
 
 G_DEFINE_TYPE (WysAudio, wys_audio, G_TYPE_OBJECT);
@@ -66,9 +67,41 @@ proplist_set (pa_proplist *props,
 
 
 static void
-context_notify_cb (pa_context *audio, gboolean *ready)
+get_card_info_cb (pa_context *audio,
+                  const pa_card_info *info,
+                  int is_last, void *userdata)
+{
+  WysAudio *self = WYS_AUDIO (userdata);
+  const char *class, *alsa_card;
+
+  if (is_last < 0)
+    {
+      g_warning ("Failed to get card information: %s",
+                 pa_strerror (pa_context_errno (self->ctx)));
+      return;
+    }
+
+  if (is_last)
+    return;
+
+  class = pa_proplist_gets (info->proplist, "device.class");
+  if (g_strcmp0 (class, "modem"))
+    return;
+
+  alsa_card = pa_proplist_gets (info->proplist, "alsa.card_name");
+  if (!alsa_card)
+    return;
+
+  g_debug ("Found card '%s', alsa: '%s'", info->name, alsa_card);
+  self->modem = g_strdup (alsa_card);
+}
+
+
+static void
+context_notify_cb (pa_context *audio, WysAudio *self)
 {
   pa_context_state_t audio_state;
+  pa_operation *op;
 
   audio_state = pa_context_get_state (audio);
   switch (audio_state)
@@ -77,7 +110,7 @@ context_notify_cb (pa_context *audio, gboolean *ready)
     case PA_CONTEXT_CONNECTING:
     case PA_CONTEXT_AUTHORIZING:
     case PA_CONTEXT_SETTING_NAME:
-      *ready = FALSE;
+      self->ready = FALSE;
       break;
     case PA_CONTEXT_FAILED:
       wys_error ("Error in PulseAudio context: %s",
@@ -85,7 +118,13 @@ context_notify_cb (pa_context *audio, gboolean *ready)
       break;
     case PA_CONTEXT_TERMINATED:
     case PA_CONTEXT_READY:
-      *ready = TRUE;
+      self->ready = TRUE;
+      /* Find modem if there's none already */
+      if (!self->modem) {
+        op = pa_context_get_card_info_list(self->ctx, get_card_info_cb, self);
+        if (op)
+          pa_operation_unref(op);
+      }
       break;
     }
 }
@@ -96,7 +135,6 @@ set_up_audio_context (WysAudio *self)
 {
   pa_proplist *props;
   int err;
-  static gboolean ready = FALSE;
 
   /* Meta data */
   props = pa_proplist_new ();
@@ -120,7 +158,7 @@ set_up_audio_context (WysAudio *self)
 
   pa_context_set_state_callback (self->ctx,
                                  (pa_context_notify_cb_t)context_notify_cb,
-                                 &ready);
+                                 self);
   err = pa_context_connect(self->ctx, NULL, PA_CONTEXT_NOFAIL, 0);
   if (err < 0)
     {
@@ -128,7 +166,7 @@ set_up_audio_context (WysAudio *self)
                   pa_strerror (err));
     }
 
-  while (!ready)
+  while (!self->ready)
     {
       g_main_context_iteration (NULL, TRUE);
     }
@@ -217,7 +255,7 @@ wys_audio_class_init (WysAudioClass *klass)
     g_param_spec_string ("modem",
                          _("Modem"),
                          _("The ALSA card name for the modem"),
-                         "SIMcom SIM7100",
+                         NULL,
                          G_PARAM_WRITABLE | G_PARAM_CONSTRUCT_ONLY);
 
   g_object_class_install_properties (object_class, PROP_LAST_PROP, props);
@@ -1127,6 +1165,9 @@ void
 wys_audio_ensure_loopback (WysAudio     *self,
                            WysDirection  direction)
 {
+  g_return_if_fail (WYS_IS_AUDIO (self));
+  g_return_if_fail (self->modem);
+
   switch (direction)
     {
     case WYS_DIRECTION_FROM_NETWORK:
@@ -1224,5 +1265,8 @@ void
 wys_audio_ensure_no_loopback (WysAudio     *self,
                               WysDirection  direction)
 {
+  g_return_if_fail (WYS_IS_AUDIO (self));
+  g_return_if_fail (self->modem);
+
   ensure_no_loopback (self->ctx, self->modem, direction);
 }
