@@ -1,3 +1,3 @@
 #!/usr/bin/dh-exec
 
-[linux-any] debian/wys.user-service => /usr/lib/systemd/user/wys.service
+[linux-any] data/wys.user.service => /usr/lib/systemd/user/wys.service
