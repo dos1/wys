@@ -1,0 +1,17 @@
+[Unit]
+Description=Wys, a daemon for voice call audio
+
+# Don't stop restarting the program
+StartLimitIntervalSec=0
+
+# We need PulseAudio
+Requires=pulseaudio.service
+
+[Service]
+ExecStart=/usr/bin/wys
+
+Restart=on-failure
+RestartSec=500ms
+
+[Install]
+WantedBy=default.target

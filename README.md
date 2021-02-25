@@ -61,3 +61,4 @@ The precendence of the different configuration methods is as follows:
   (1) command line options
   (2) environment variables
   (3) machine configuration files.
+  (4) autodetecton via pulseaudio's 'modem' device.class

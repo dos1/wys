@@ -5,8 +5,5 @@ export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 %:
 	dh $@ --builddirectory=_build
 
-override_dh_link:
-	dh_link
-ifeq ($(DEB_HOST_ARCH_OS),linux)
-	dh_link usr/lib/systemd/user/wys.service usr/lib/systemd/user/default.target.wants/wys.service
-endif
+execute_before_dh_installsystemduser:
+	cp data/wys.user.service debian/

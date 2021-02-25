@@ -12,7 +12,6 @@ variables:
 before_script:
   - export DEBIAN_FRONTEND=noninteractive
   - apt-get -y update
-  - apt-get -y update
   - apt-get -y build-dep .
   - apt-get -y install $DEPS
 
@@ -20,9 +19,24 @@ before_script:
   tags:
     - librem5
 
-build:native:
+build:native:buster:
   <<: *tags
   stage: build
+  image: debian:buster
+  artifacts:
+    paths:
+      - _build
+  script:
+    - meson --werror . _build
+    - ninja -C _build
+  except:
+    variables:
+      - $PKG_ONLY == "1"
+
+build:native:bullseye:
+  <<: *tags
+  stage: build
+  image: debian:bullseye
   artifacts:
     paths:
       - _build
@@ -39,6 +53,16 @@ package:deb-debian-buster:
 package:deb-debian-buster:arm64:
   tags:
     - librem5:arm64
+  before_script: []
+  extends: .l5-build-debian-package
+
+package:deb-debian-bullseye:arm64:
+  tags:
+    - librem5:arm64
+  variables:
+    L5_DOCKER_IMAGE: debian:bullseye
+    L5_ADD_SCRATCH_CI: 'false'
+  before_script: []
   extends: .l5-build-debian-package
 
 autopkgtest-debian-buster-package:
