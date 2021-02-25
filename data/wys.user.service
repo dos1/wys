@@ -8,19 +8,6 @@ StartLimitIntervalSec=0
 Requires=pulseaudio.service
 
 [Service]
-
-# Execution will fail unless (1) the --modem command-line
-# option is given with appropriate ALSA card name, (2) the
-# WYS_MODEM environment variables is set, or (3) the
-# current machine is present in a machine-conf database under
-# /usr/share/wys, /etc/wys, $HOME/.config/wys, etc.
-#
-# Environment variable can be set elsewhere, for example adding a
-# wys.service.d/my-hardware.conf containing the following:
-#
-#   [Service]
-#   Environment=WYS_MODEM="SIMCom SIM7100"
-#
 ExecStart=/usr/bin/wys
 
 Restart=on-failure
