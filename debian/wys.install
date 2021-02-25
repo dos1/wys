@@ -1,3 +1,0 @@
-#!/usr/bin/dh-exec
-
-[linux-any] data/wys.user.service => /usr/lib/systemd/user/wys.service
